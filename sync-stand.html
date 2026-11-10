@@ -42,7 +42,7 @@
 <body>
 <main id="setup">
   <header>
-    <div class="eyebrow">Два устройства · v0.1</div>
+    <div class="eyebrow">Два устройства · v0.2</div>
     <h1>Стенд синхронизации</h1>
     <p>Открой этот файл на Windows и Mac. На одном устройстве создай тест, на другом вставь код.</p>
   </header>
@@ -51,9 +51,9 @@
       <h2>Создать тест</h2>
       <label for="mode">Способ запуска</label>
       <select id="mode">
+        <option value="U" selected>Интернет-время</option>
         <option value="S">Системное время</option>
         <option value="M">Ручной старт</option>
-        <option value="U">Интернет-время</option>
       </select>
       <p id="mode-help" class="help"></p>
       <div id="delay-fields">
