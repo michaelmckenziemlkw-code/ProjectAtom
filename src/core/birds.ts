@@ -32,6 +32,21 @@ export function beakWorld(
 ): Point {
   return add(position, rotate(beakLocal(dip).map((v) => v * scale) as Point, rotation));
 }
+export function unrotate(p: Point, rotation: Point): Point {
+  return [0, 1, 2].map((i) => {
+    const axis: Point = [0, 0, 0];
+    axis[i] = 1;
+    return rotate(axis, rotation).reduce((sum, v, j) => sum + v * p[j]!, 0);
+  }) as Point;
+}
+export function crowGraspTargets(crow: { position: Point; rotation: Point }): [Point, Point] {
+  return [-1, 1].map((side) =>
+    add(
+      crow.position,
+      rotate([side * 0.19 * CROW_SCALE, 0.22 * CROW_SCALE, -0.28 * CROW_SCALE], crow.rotation),
+    ),
+  ) as [Point, Point];
+}
 export interface BirdPose {
   position: Point;
   rotation: Point;
@@ -40,6 +55,10 @@ export interface BirdPose {
   flap: number;
   fold: number;
   spread: number;
+  grasp?: number;
+  startle?: number;
+  look?: number;
+  feet?: [Point, Point];
 }
 export function flightRig(
   time: number,

@@ -1,6 +1,6 @@
 import { WORM_SPACING } from './wormBody.ts';
 import { introSegment, WORM_IDLE_Y } from './wormPose.ts';
-import { add, rotate, GRIP_SEGMENT, CROW_SCALE, EAGLE_SCALE } from './birds.ts';
+import { add, rotate, GRIP_SEGMENT, CROW_SCALE, EAGLE_SCALE, crowGraspTargets } from './birds.ts';
 import { wormAppearance } from './wormAppearance.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -85,7 +85,7 @@ test('both birds fit the attack camera and the fall camera tracks the rotating b
   const dot = (a: number[], b: number[]) => a.reduce((sum, v, i) => sum + v * b[i]!, 0);
   const sub = (a: number[], b: number[]) => a.map((v, i) => v - b[i]!);
   const norm = (a: number[]) => a.map((v) => v / Math.hypot(...a));
-  for (let time = 67; time < 75; time += 0.1) {
+  for (let time = 67; time < 72; time += 0.1) {
     const s = sampleIntro(time),
       forward = norm(sub(s.target, s.camera));
     const right = norm([forward[2]!, 0, -forward[0]!]);
@@ -249,4 +249,30 @@ test('worm lands on its back curled up, then rolls and unfolds with repeated cou
   const span = Math.hypot(...points[10]!.map((v, i) => v - points[0]![i]!));
   assert.ok(span < 1.7);
   for (const t of [112.5, 115.9, 119.3, 122.7, 126.2]) assert.ok(sampleIntro(t).cough > 0.2);
+});
+
+test('the eagle notices the crow in a short insert, overtakes from behind and closes both feet before surprise', () => {
+  assert.ok(sampleIntro(53.5).spotting && sampleIntro(54.8).spotting);
+  assert.equal(sampleIntro(55.1).spotting, false);
+  for (const t of [65, 68, 71, 73]) {
+    const s = sampleIntro(t);
+    assert.ok(s.eagle[2] < s.crow[2]);
+    assert.ok(s.eaglePose.rotation[1] > -0.3 && s.eaglePose.rotation[1] < 0.1);
+  }
+  assert.equal(sampleIntro(74.1).eaglePose.grasp, 0);
+  assert.equal(sampleIntro(74.65).eaglePose.grasp, 1);
+  assert.equal(sampleIntro(74.65).crowPose.startle, 0);
+  assert.ok(sampleIntro(74.9).crowPose.startle! > 0.9);
+  assert.ok(sampleIntro(74.9).crowPose.open > 1.4);
+  for (const t of [74.6, 74.9, 75.2, 78, 82]) {
+    const s = sampleIntro(t),
+      targets = crowGraspTargets(s.crowPose);
+    s.eaglePose.feet!.forEach((foot, i) => {
+      const world = add(
+        s.eagle,
+        rotate(foot.map((v) => v * EAGLE_SCALE) as [number, number, number], s.eaglePose.rotation),
+      );
+      assert.ok(Math.hypot(...world.map((v, j) => v - targets[i]![j]!)) < 1e-8);
+    });
+  }
 });

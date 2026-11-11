@@ -287,3 +287,41 @@ test('sun silhouette, cloud depth, forward flight and exhausted landing are read
   await expect(canvas).toHaveAttribute('data-cinematic', 'false');
   expect(errors).toEqual([]);
 });
+
+test('eagle spotting insert leads to a rear talon grip, shocked beak and continuous release', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.clock.install();
+  await page.goto('/?seed=12');
+  await page.locator('#enter-cinematic').click({ timeout: 60000 });
+  const canvas = page.locator('#world');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  const show = async (t: number, file: string) => {
+    const now = Number(await canvas.getAttribute('data-animation-time'));
+    await page.clock.fastForward((t - now) * 1000);
+    await page.clock.runFor(16);
+    await page.screenshot({ path: 'docs/images/' + file + '.png' });
+  };
+  await show(53.8, 'worm-eagle-notices');
+  await expect(canvas).toHaveAttribute('data-eagle-spotting', 'true');
+  await show(71, 'worm-rear-pursuit');
+  await expect(canvas).toHaveAttribute('data-eagle-spotting', 'false');
+  await show(74.45, 'worm-talons-closing');
+  expect(Number(await canvas.getAttribute('data-eagle-grasp'))).toBeGreaterThan(0.5);
+  await show(74.9, 'worm-crow-startled');
+  expect(Number(await canvas.getAttribute('data-talon-max-span'))).toBeLessThan(3.5);
+  expect(Number(await canvas.getAttribute('data-talon-grip-error'))).toBeLessThan(0.001);
+  expect(Number(await canvas.getAttribute('data-crow-beak-open'))).toBeGreaterThan(1.4);
+  await expect(canvas).toHaveAttribute('data-intro-carried', 'true');
+  const camera = JSON.parse((await canvas.getAttribute('data-intro-camera'))!);
+  await show(75.05, 'worm-grasp-release');
+  await expect(canvas).toHaveAttribute('data-intro-carried', 'false');
+  const after = JSON.parse((await canvas.getAttribute('data-intro-camera'))!);
+  expect(Math.hypot(...after.map((v: number, i: number) => v - camera[i]))).toBeLessThan(1);
+  expect(Number(await canvas.getAttribute('data-talon-grip-error'))).toBeLessThan(0.001);
+  await show(78.3, 'worm-sun-bullet');
+  expect(Number(await canvas.getAttribute('data-solar-alignment'))).toBeLessThan(0.03);
+  expect(errors).toEqual([]);
+});

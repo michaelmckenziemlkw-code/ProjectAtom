@@ -1,3 +1,4 @@
+import { createRaptorLeg } from './raptorLeg.ts';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -14,6 +15,8 @@ export function createProceduralBird(scene: Scene, eagle = false) {
   const face = eagle ? material(scene, 'eagle-white-head', '#c2beb0', 12) : feathers;
   const beak = material(scene, `${name}-beak`, eagle ? '#a78232' : '#333944', 25);
   const eyes = material(scene, `${name}-eyes`, eagle ? '#b98030' : '#050608', 60);
+  const claw = eagle ? material(scene, 'eagle-claw-keratin', '#302728', 25) : beak;
+  const ivory = eagle ? face : material(scene, 'crow-eye-glint', '#dfd9cb', 30);
   const pupil = material(scene, `${name}-pupil`, '#06080b', 50);
   ellipsoid(
     scene,
@@ -73,7 +76,7 @@ export function createProceduralBird(scene: Scene, eagle = false) {
     hook.material = beak;
   }
   const wings = [-1, 1].map((side) => {
-    ellipsoid(
+    const eye = ellipsoid(
       scene,
       `${name}-eye`,
       new Vector3(side * 0.18, 0.15, 0.3),
@@ -81,6 +84,26 @@ export function createProceduralBird(scene: Scene, eagle = false) {
       eyes,
       head,
     );
+    const glint = eagle
+      ? null
+      : ellipsoid(
+          scene,
+          'crow-startle-glint',
+          new Vector3(side * 0.2, 0.156, 0.32),
+          new Vector3(0.008, 0.009, 0.008),
+          ivory,
+          head,
+        );
+    const crowBrow = eagle
+      ? null
+      : ellipsoid(
+          scene,
+          'crow-expression-brow',
+          new Vector3(side * 0.18, 0.195, 0.3),
+          new Vector3(0.048, 0.012, 0.044),
+          feathers,
+          head,
+        );
     if (eagle) {
       ellipsoid(
         scene,
@@ -100,27 +123,30 @@ export function createProceduralBird(scene: Scene, eagle = false) {
       );
       brow.rotation.z = side * 0.28;
     }
-    const leg = new TransformNode(`${name}-leg-root`, scene);
-    leg.parent = root;
-    segment(
-      scene,
-      `${name}-leg`,
-      new Vector3(side * 0.12, -0.15, -0.13),
-      new Vector3(side * 0.13, -0.5, -0.03),
-      0.025,
-      beak,
-      leg,
-    );
-    for (let toe = 0; toe < 3; toe++)
+    const raptorLeg = eagle ? createRaptorLeg(scene, root, side, beak, claw) : null;
+    const leg = eagle ? null : new TransformNode(`${name}-leg-root`, scene);
+    if (leg) {
+      leg.parent = root;
       segment(
         scene,
-        `${name}-talon`,
+        `${name}-leg`,
+        new Vector3(side * 0.12, -0.15, -0.13),
         new Vector3(side * 0.13, -0.5, -0.03),
-        new Vector3(side * 0.13 + (toe - 1) * 0.045, -0.54, 0.13),
-        0.014,
+        0.025,
         beak,
         leg,
       );
+      for (let toe = 0; toe < 3; toe++)
+        segment(
+          scene,
+          `${name}-talon`,
+          new Vector3(side * 0.13, -0.5, -0.03),
+          new Vector3(side * 0.13 + (toe - 1) * 0.045, -0.54, 0.13),
+          0.014,
+          beak,
+          leg,
+        );
+    }
     const wing = new TransformNode(`${name}-shoulder`, scene);
     wing.parent = root;
     wing.position.set(side * 0.17, 0.1, 0);
@@ -146,7 +172,7 @@ export function createProceduralBird(scene: Scene, eagle = false) {
       );
       feather.rotation.y = side * (0.42 + i * 0.09);
     }
-    return { wing, wrist, side, leg };
+    return { wing, wrist, side, leg, raptorLeg, eye, glint, crowBrow };
   });
   const tailRoot = new TransformNode(`${name}-tail-root`, scene);
   tailRoot.parent = root;
@@ -169,14 +195,23 @@ export function createProceduralBird(scene: Scene, eagle = false) {
       root.position.copyFromFloats(...pose.position);
       root.rotation.copyFromFloats(...pose.rotation);
       head.rotation.x = pose.dip;
+      head.rotation.y = pose.look ?? 0;
       jaw.rotation.x = pose.open * 0.55;
       tailRoot.rotation.x = Math.sin(seconds * 1.4) * 0.05;
-      for (const { wing, wrist, side, leg } of wings) {
+      for (const { wing, wrist, side, leg, raptorLeg, eye, glint, crowBrow } of wings) {
         wing.rotation.z = side * pose.flap;
         wing.rotation.y = side * (1 - pose.spread) * 0.45;
         wrist.rotation.z = side * (pose.flap * 0.3 - pose.fold * 0.8);
         wrist.rotation.y = side * pose.fold * 0.75;
-        leg.rotation.x = pose.dip > 0.9 ? 0 : -0.65 * (1 - Math.min(1, pose.dip));
+        const startle = pose.startle ?? 0;
+        eye.scaling.set(0.033 * (1 + 0.45 * startle), 0.029 * (1 + 0.6 * startle), 0.035);
+        if (glint) glint.scaling.setAll(0.008 * (0.4 + startle));
+        if (crowBrow) {
+          crowBrow.position.y = 0.195 + 0.04 * startle;
+          crowBrow.rotation.z = side * -0.3 * startle;
+        }
+        raptorLeg?.present(pose.feet?.[side < 0 ? 0 : 1], pose.grasp ?? 0);
+        if (leg) leg.rotation.x = pose.dip > 0.9 ? 0 : -0.65 * (1 - Math.min(1, pose.dip));
       }
     },
     hide() {

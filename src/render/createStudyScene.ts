@@ -1,7 +1,7 @@
 import { WORLD_PALETTE as palette } from './palette.ts';
 import { createCinematicSky } from './cinematicSky.ts';
 import { ColorCurves } from '@babylonjs/core/Materials/colorCurves';
-import { MOUTH } from '../core/birds.ts';
+import { MOUTH, crowGraspTargets } from '../core/birds.ts';
 import { createProceduralBird } from './models/proceduralBird.ts';
 import { sampleIntro, SUN_POSITION } from '../core/cinematic.ts';
 import { createIntroStage } from './introStage.ts';
@@ -213,6 +213,28 @@ export async function createStudyScene(
       canvas.dataset.solarAlignment = String(
         Math.hypot(projectedSun.x - projectedTarget.x, projectedSun.y - projectedTarget.y) /
           engine.getRenderWidth(),
+      );
+      canvas.dataset.talonMaxSpan = String(
+        Math.max(
+          ...scene.meshes
+            .filter((m) => m.name === 'eagle-curling-toe')
+            .map((m) => Math.max(...m.getBoundingInfo().boundingBox.extendSizeWorld.asArray()) * 2),
+        ),
+      );
+      canvas.dataset.eagleSpotting = String(sample.spotting);
+      canvas.dataset.eagleGrasp = String(sample.eaglePose.grasp ?? 0);
+      canvas.dataset.crowStartle = String(sample.crowPose.startle ?? 0);
+      canvas.dataset.crowBeakOpen = String(sample.crowPose.open);
+      const talonTargets = crowGraspTargets(sample.crowPose);
+      canvas.dataset.talonGripError = String(
+        Math.max(
+          ...['left', 'right'].map((side, i) =>
+            Vector3.Distance(
+              scene.getTransformNodeByName('eagle-foot-' + side)!.getAbsolutePosition(),
+              Vector3.FromArray(talonTargets[i]!),
+            ),
+          ),
+        ),
       );
       const neck = scene.getTransformNodeByName('crow-neck')!;
       const mouth = Vector3.TransformCoordinates(Vector3.FromArray(MOUTH), neck.getWorldMatrix());
