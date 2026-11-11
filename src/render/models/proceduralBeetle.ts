@@ -202,14 +202,23 @@ export function createProceduralBeetle(scene: Scene): BeetleActor {
     root,
     present(state) {
       const breath = Math.sin(state.seconds * 1.8) * 0.015;
-      body.rotation.x = 0.6 + breath;
+      body.rotation.x = (state.walking === undefined ? 0.6 : 0.16) + breath;
       for (const [kind, node] of marks) node.setEnabled(kind === state.symbol);
       for (const leg of legs) {
         const active = leg.side === 1 && leg.row === 0;
         const target = sampleGesture(state.gesture, state.seconds).foot;
-        const foot = active
-          ? new Vector3(target.x, target.y, target.z)
-          : new Vector3(leg.side * 1.6, 0.12, leg.shoulder.z + (leg.row - 1) * 0.55);
+        const phase =
+          (state.walking ?? 0) * 8 + leg.row * Math.PI * 0.65 + (leg.side === 1 ? Math.PI : 0);
+        const foot =
+          state.walking !== undefined
+            ? new Vector3(
+                leg.side * 1.55,
+                0.12 + Math.max(0, Math.sin(phase)) * 0.32,
+                leg.shoulder.z + Math.cos(phase) * 0.42,
+              )
+            : active
+              ? new Vector3(target.x, target.y, target.z)
+              : new Vector3(leg.side * 1.6, 0.12, leg.shoulder.z + (leg.row - 1) * 0.55);
         // Bend outwards. The foot has a stable ground target while the body breathes.
         const knee = active
           ? new Vector3(1.05, 0.72 + foot.y * 0.42, -0.75 + (foot.z + 1) * 0.3)

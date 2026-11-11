@@ -7,6 +7,7 @@ export interface BeetlePresentation {
   gesture: Gesture;
   symbol: SymbolKind;
   seconds: number;
+  walking?: number;
 }
 export interface BeetleActor {
   readonly root: TransformNode;

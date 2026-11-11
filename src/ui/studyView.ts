@@ -4,8 +4,7 @@ import { descriptions, gestureLabels, gestures } from '../core/observation.ts';
 
 export function mountStudyView(container: HTMLElement, session: ObservationSession) {
   container.innerHTML = `
-    <canvas id="world" tabindex="0" aria-label="Трёхмерный жук в земляном проходе. Перетаскивай мышью для осмотра, колесо приближает."></canvas>
-    <header class="topbar"><a class="brand" href="./" aria-label="ProjectAtom — начать заново">A<span>PROJECT<br>ATOM</span></a><div class="chapter"><span class="eyebrow">Исследование 01 / 3D</span><p>У прохода</p></div><button id="settings-button" aria-expanded="false" aria-controls="settings">Настройки</button></header>
+    <canvas id="world" tabindex="0" aria-label="Управление червём от третьего лица. WASD — движение, мышь — обзор, Escape — меню."></canvas>
     <div id="settings-backdrop" hidden></div><section id="settings" class="settings panel graphics-open" hidden role="dialog" aria-modal="true" aria-label="Настройки" tabindex="-1">
       <h2>Настройки</h2><button id="settings-close" aria-label="Закрыть настройки">×</button>
       <div class="button-row" role="tablist" aria-label="Раздел настроек"><button id="game-tab" role="tab" aria-selected="true" aria-controls="game-settings">Звук</button><button id="graphics-tab" role="tab" aria-selected="false" aria-controls="graphics-settings" tabindex="-1">Видео</button></div>
@@ -18,17 +17,15 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
         </div><aside class="graphics-aside"><div class="graphics-context"><span class="eyebrow">Описание параметра</span><h3>Звуковые эффекты</h3><p>Громкость звуков окружения и взаимодействий. Нулевое значение отключает звучание.</p></div></aside></div>
       </div><div id="graphics-settings" role="tabpanel" aria-labelledby="graphics-tab" hidden></div>
     </section>
-    <div id="loading" class="entry"><div class="entry-card"><span class="eyebrow">ProjectAtom · технопроба</span><h1>По ту сторону<br>маленького мира.</h1><p>Здесь есть только ты, проход и его обитатель.</p><button id="enter" disabled>Подготовка сцены…</button><p class="muted">Это проверка 3D-модели и анимаций. Полная эстафета остаётся в предыдущем макете.</p></div></div>
-    <main id="study" hidden>
-      <section class="camera-tools" aria-label="Камера и воспроизведение"><div class="eyebrow">Мир червя</div><h1>Кто-то занял проход.</h1><p id="fps">Отрисовка: —</p><div class="button-row"><button id="inspect">Приблизиться</button><button id="wide">Общий план</button><button id="pause" aria-pressed="false">Пауза</button></div><p class="hint">Мышь — осмотреть · колесо — расстояние<br>Стрелки — повернуть камеру</p></section>
-      <aside class="observation-panel panel"><div class="eyebrow">Наблюдения</div><nav id="observations" aria-label="Выбрать наблюдение">${session.observations.map((_, i) => `<button data-observation="${i}" aria-label="Наблюдение ${i + 1}" aria-pressed="${i === 0}">0${i + 1}</button>`).join('')}</nav><details id="self-check"><summary>Проверить себя · технопроба</summary><form id="answer-form"><fieldset><legend class="sr-only">Описание движения</legend>${gestures.map((gesture) => `<label class="answer"><input type="radio" name="answer" value="${gesture}" required><span>${gestureLabels[gesture]}</span></label>`).join('')}</fieldset><button class="primary" type="submit">Проверить наблюдение</button></form><p id="feedback" role="status" aria-live="polite"></p><p id="progress" class="muted"></p></details><details id="hints"><summary>Подсказки · <span id="hint-budget">10</span> очков</summary><div id="hint-text"></div><button id="hint-next">Открыть следующий уровень · 1 очко</button></details></aside>
-    </main>
+    <div id="loading" class="entry"><div class="entry-card"><span class="eyebrow">ProjectAtom · технопроба</span><h1>По ту сторону<br>маленького мира.</h1><p>WASD — движение. Мышь — обзор. Escape — меню.<br>Для начала потребуется захват указателя мыши.</p><button id="enter" disabled>Подготовка сцены…</button><p class="muted">Технодемка управления червём. Полная голосовая эстафета остаётся в предыдущем макете.</p></div></div>
+    <section id="pause-menu" class="pause-menu panel" hidden role="dialog" aria-modal="true" aria-label="Меню игры" tabindex="-1"><span class="eyebrow">ProjectAtom</span><h1>Меню</h1><nav class="pause-actions" aria-label="Действия меню"><button id="resume">Продолжить игру</button><button id="open-settings">Настройки</button><button id="quit">Выйти из игры</button></nav><p class="muted">Время игры продолжается</p><p id="control-error" role="status"></p><details id="hints"><summary>Подсказки · <span id="hint-budget">10</span> очков</summary><div id="hint-text"></div><button id="hint-next">Открыть следующий уровень · 1 очко</button></details><details id="technical"><summary>Техническая проверка</summary><div class="eyebrow">Наблюдения</div><nav id="observations" aria-label="Выбрать наблюдение">${session.observations.map((_, i) => `<button data-observation="${i}" aria-label="Наблюдение ${i + 1}" aria-pressed="${i === 0}">0${i + 1}</button>`).join('')}</nav><details id="self-check"><summary>Проверить себя · технопроба</summary><form id="answer-form"><fieldset><legend class="sr-only">Описание движения</legend>${gestures.map((gesture) => `<label class="answer"><input type="radio" name="answer" value="${gesture}" required><span>${gestureLabels[gesture]}</span></label>`).join('')}</fieldset><button class="primary" type="submit">Проверить наблюдение</button></form><p id="feedback" role="status" aria-live="polite"></p><p id="progress" class="muted"></p></details></details></section>
+    <main id="study" class="play-hud" hidden><p id="fps"></p><div class="crosshair" aria-hidden="true">·</div><p id="interaction"></p><p id="notice" role="status"></p><p class="play-keys">WASD — движение · мышь — обзор · Esc — меню</p></main>
     <section id="failure" class="failure panel" hidden role="alert"><h1>Не удалось показать 3D-сцену</h1><p id="failure-message"></p><p>Проверь аппаратное ускорение браузера или попробуй другой актуальный браузер.</p><button id="reload">Повторить</button></section>
   `;
   const element = <T extends HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
   const canvas = element<HTMLCanvasElement>('world');
   const form = element<HTMLFormElement>('answer-form');
-  const hints = new HintBank({ beetle: 3 });
+  let hints = new HintBank({ beetle: 3 });
   function refreshHints() {
     const symbol = { ring: 'кольцо', fork: 'развилка', bars: 'полосы' }[session.current.symbol];
     const texts = [
@@ -73,45 +70,53 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
       );
     });
   }
-  let returnFocus: HTMLElement | null = null;
-  function closeSettings() {
-    element('settings').hidden = true;
-    element('settings-backdrop').hidden = true;
-    element('settings-button').setAttribute('aria-expanded', 'false');
-    returnFocus?.focus();
+  type Mode = 'entry' | 'playing' | 'menu' | 'settings' | 'failure';
+  let mode: Mode = 'entry';
+  const emit = (name: string) => container.dispatchEvent(new CustomEvent(name));
+  function show(next: Mode) {
+    mode = next;
+    element('loading').hidden = next !== 'entry';
+    element('study').hidden = next !== 'playing';
+    element('pause-menu').hidden = next !== 'menu';
+    element('settings').hidden = next !== 'settings';
+    element('failure').hidden = next !== 'failure';
+    element('settings-backdrop').hidden = next !== 'menu' && next !== 'settings';
+    container.dispatchEvent(new CustomEvent('ui-mode-change', { detail: next }));
+    if (next === 'menu') element('resume').focus();
+    if (next === 'settings')
+      element('settings').querySelector<HTMLElement>('[role=tab][aria-selected=true]')!.focus();
   }
-  function openSettings() {
-    returnFocus = document.activeElement as HTMLElement;
-    element('settings').hidden = false;
-    element('settings-backdrop').hidden = false;
-    element('settings-button').setAttribute('aria-expanded', 'true');
-    element('settings').querySelector<HTMLElement>('[role=tab][aria-selected=true]')!.focus();
-  }
-  element('settings-close').addEventListener('click', closeSettings);
-  element('settings-backdrop').addEventListener('click', closeSettings);
+  element('resume').addEventListener('click', () => emit('request-resume'));
+  element('quit').addEventListener('click', () => emit('request-quit'));
+  element('open-settings').addEventListener('click', () => show('settings'));
+  element('settings-close').addEventListener('click', () => show('menu'));
+  element('settings-backdrop').addEventListener('click', () =>
+    mode === 'settings' ? show('menu') : emit('request-resume'),
+  );
   document.addEventListener('keydown', (event) => {
-    if (element('settings').hidden) return;
+    if (mode === 'entry' || mode === 'failure') return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      closeSettings();
+      if (mode === 'menu') emit('request-resume');
+      else show('menu');
     }
-    if (event.key === 'Tab') {
-      const focusable = [
-        ...element('settings').querySelectorAll<HTMLElement>('button,input,select,[tabindex="0"]'),
+    if (event.key === 'Tab' && (mode === 'menu' || mode === 'settings')) {
+      const dialog = element(mode === 'menu' ? 'pause-menu' : 'settings');
+      const controls = [
+        ...dialog.querySelectorAll<HTMLElement>('button,input,select,summary,[tabindex="0"]'),
       ].filter(
         (el) =>
           !el.closest('[hidden]') &&
-          el.offsetParent !== null &&
+          el.getClientRects().length > 0 &&
           !(el as HTMLInputElement).disabled &&
           el.tabIndex >= 0,
       );
-      const first = focusable[0],
-        last = focusable.at(-1)!;
+      const first = controls[0],
+        last = controls.at(-1)!;
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
-      }
-      if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
         first.focus();
       }
@@ -158,10 +163,6 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
     element('progress').textContent = `Распознано: ${count} / 3`;
     answered = true;
   });
-  element('settings-button').addEventListener('click', () => {
-    if (element('settings').hidden) openSettings();
-    else closeSettings();
-  });
   element('reload').addEventListener('click', () => location.reload());
   refresh();
   return {
@@ -173,18 +174,32 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
     },
     ready() {
       element<HTMLButtonElement>('enter').disabled = false;
-      element('enter').textContent = 'Осмотреть место';
+      element('enter').textContent = 'Начать технодемку';
+    },
+    get mode() {
+      return mode;
     },
     enter() {
-      element('loading').hidden = true;
-      element('study').hidden = false;
+      show('playing');
       canvas.focus();
     },
+    menu(error = '') {
+      element('control-error').textContent = error;
+      show('menu');
+    },
+    entry() {
+      show('entry');
+      element('enter').focus();
+    },
+    resetTrial() {
+      hints = new HintBank({ beetle: 3 });
+      session.state.index = 0;
+      session.state.answers = {};
+      refresh();
+    },
     fail(message: string) {
-      element('loading').hidden = true;
-      element('study').hidden = true;
-      element('failure').hidden = false;
       element('failure-message').textContent = message;
+      show('failure');
     },
   };
 }

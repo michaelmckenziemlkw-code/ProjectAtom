@@ -200,19 +200,19 @@ export function createEnvironment(scene: Scene) {
     }
   }
   return {
-    present(gesture: Gesture, seconds: number) {
+    present(gesture: Gesture, seconds: number, active = true) {
       const sample = sampleGesture(gesture, seconds);
       const phase = seconds % GESTURE_DURATION;
       const length =
         gesture === 'scrape' ? Math.max(0, Math.min(1, (phase - 0.5) / 1.9)) * 1.45 : 0;
       for (const groove of grooves) {
-        groove.setEnabled(length > 0.01);
+        groove.setEnabled(active && length > 0.01);
         groove.scaling.z = Math.max(0.01, length);
         groove.position.z = -2 + length / 2;
       }
       for (let i = 0; i < dust.length; i++) {
         const mote = dust[i];
-        mote.setEnabled(sample.contact > 0);
+        mote.setEnabled(active && sample.contact > 0);
         const f = (seconds * 2 + i * 0.13) % 1;
         mote.position.set(
           sample.foot.x + Math.sin(i * 2.1) * f * 0.4,
