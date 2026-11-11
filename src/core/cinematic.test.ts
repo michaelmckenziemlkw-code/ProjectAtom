@@ -20,6 +20,7 @@ import {
   SUN_POSITION,
   SUN_DIRECTION,
   SUN_RADIUS,
+  SOLAR_TIME,
 } from './cinematic.ts';
 
 test('MIDI-duration prologue has ordered capture, ascent, attack, 35-second fall and aftermath', () => {
@@ -146,7 +147,7 @@ test('artistic altitude gives a 3x to 6x accelerating fall while keeping the 35-
   for (let t = RELEASE_TIME; t < IMPACT_TIME - 0.01; t += 0.1) {
     const sample = sampleIntro(t);
     const measured = (sample.worm[1] - sampleIntro(t + 0.01).worm[1]) / 0.01;
-    assert.ok(measured >= previousSpeed);
+    if (t >= SOLAR_TIME + 1.7) assert.ok(measured >= previousSpeed);
     assert.ok(Math.abs(measured - sample.fallSpeed) < 0.12);
     previousSpeed = measured;
   }
@@ -190,9 +191,9 @@ test('long recovery converges continuously to the exact gameplay idle before han
 
 test('sun release gets at least half a second of bullet time, then catches up to the unchanged impact', () => {
   assert.ok(BULLET_DURATION >= 0.5);
-  assert.ok(fallClock(0.6).seconds < 0.1);
+  assert.ok(fallClock(3.6).seconds - fallClock(3).seconds < 0.1);
   assert.ok(Math.abs(fallClock(35).seconds - 35) < 1e-8);
-  const s = sampleIntro(75.3);
+  const s = sampleIntro(SOLAR_TIME + 0.3);
   assert.ok(s.bullet && s.solarStrength === 1);
   const towardSun = SUN_POSITION.map((v, i) => v - s.target[i]!);
   const towardCamera = s.camera.map((v, i) => v - s.target[i]!);
@@ -220,4 +221,32 @@ test('impact is followed by stillness and a weak, faltering head lift before rec
   const early = introSegment(sampleIntro(110.2), 0),
     still = introSegment(sampleIntro(110.8), 0);
   assert.deepEqual(early, still);
+});
+
+test('release camera and look target remain continuous while approaching the solar portrait', () => {
+  let previous = sampleIntro(74.5);
+  for (let t = 74.502; t < 79; t += 0.002) {
+    const s = sampleIntro(t);
+    assert.ok(Math.hypot(...s.camera.map((v, i) => v - previous.camera[i]!)) < 0.1);
+    assert.ok(Math.hypot(...s.target.map((v, i) => v - previous.target[i]!)) < 0.04);
+    previous = s;
+  }
+  assert.ok(sampleIntro(76).crowVisible && sampleIntro(76).eagleVisible);
+  assert.equal(sampleIntro(75.3).bullet, false);
+  for (const t of [68, 70, 72]) {
+    const s = sampleIntro(t),
+      forward = rotate([0, 0, 1], s.eaglePose.rotation);
+    const eye = s.camera.map((v, i) => v - s.eagle[i]!);
+    assert.ok(forward.reduce((sum, v, i) => sum + v * eye[i]!, 0) / Math.hypot(...eye) > 0.5);
+  }
+});
+test('worm lands on its back curled up, then rolls and unfolds with repeated coughs', () => {
+  assert.equal(sampleIntro(110.5).rotation[2], Math.PI);
+  assert.ok(sampleIntro(118).rotation[2] > 0 && sampleIntro(118).rotation[2] < Math.PI);
+  assert.equal(sampleIntro(INTRO_DURATION).rotation[2], 0);
+  const s = sampleIntro(110.5);
+  const points = Array.from({ length: 11 }, (_, i) => introSegment(s, i));
+  const span = Math.hypot(...points[10]!.map((v, i) => v - points[0]![i]!));
+  assert.ok(span < 1.7);
+  for (const t of [112.5, 115.9, 119.3, 122.7, 126.2]) assert.ok(sampleIntro(t).cough > 0.2);
 });

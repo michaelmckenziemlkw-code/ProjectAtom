@@ -7,13 +7,13 @@ import { ellipsoid, material, segment } from './meshTools.ts';
 
 /** Small persistent set at the player spawn: wet mud, leaves, water, tiny blood flecks. */
 export function createIntroStage(scene: Scene) {
-  const mud = material(scene, 'wet-mud', '#302e2c', 90);
-  const water = material(scene, 'puddle-water', '#394c56', 150);
+  const mud = material(scene, 'wet-mud', '#494354', 90);
+  const water = material(scene, 'puddle-water', '#4b798b', 150);
   water.specularColor = new Color3(0.7, 0.8, 0.9);
   ellipsoid(scene, 'puddle-bank', new Vector3(0, -0.04, -6.1), new Vector3(1.5, 0.08, 1.9), mud);
   ellipsoid(scene, 'puddle', new Vector3(0, 0.018, -6.1), new Vector3(1.25, 0.018, 1.65), water);
-  const deadLeaf = material(scene, 'wet-leaf', '#524135', 65);
-  const vein = material(scene, 'wet-leaf-vein', '#80705a', 30);
+  const deadLeaf = material(scene, 'wet-leaf', '#9a7666', 65);
+  const vein = material(scene, 'wet-leaf-vein', '#c4ab90', 30);
   for (let i = 0; i < 12; i++) {
     const angle = i * 2.399;
     const radius = 0.9 + (i % 3) * 0.25;

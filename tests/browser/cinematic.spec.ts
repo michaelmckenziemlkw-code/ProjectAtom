@@ -236,6 +236,10 @@ test('sun silhouette, cloud depth, forward flight and exhausted landing are read
     const time = Number(await canvas.getAttribute('data-animation-time'));
     await page.clock.fastForward(Math.max(1, (target - time) * 1000));
     await page.clock.runFor(16);
+    if (target >= 109.5)
+      expect(Number(await canvas.getAttribute('data-worm-surface-min-y'))).toBeGreaterThanOrEqual(
+        0.0399,
+      );
     await page.screenshot({ path: `docs/images/${name}.png` });
   };
   await show(5.7, 'worm-front-cough');
@@ -243,8 +247,26 @@ test('sun silhouette, cloud depth, forward flight and exhausted landing are read
   await show(53, 'worm-forward-flight');
   expect(Number(await canvas.getAttribute('data-cloud-banks'))).toBeGreaterThanOrEqual(48);
   expect(Number(await canvas.getAttribute('data-cloud-thickness'))).toBeGreaterThan(5);
+  const sky = await canvas.getAttribute('data-sky-color');
+  for (const t of [60, 63.2, 64, 65, 66]) {
+    await show(t, 'worm-clear-flight');
+    expect(Number(await canvas.getAttribute('data-cloud-view-blockers'))).toBe(0);
+  }
   await show(70, 'worm-larger-birds');
-  await show(75.3, 'worm-sun-bullet');
+  await show(74.98, 'worm-release-before');
+  const beforeCamera = JSON.parse((await canvas.getAttribute('data-intro-camera'))!);
+  const beforeTarget = JSON.parse((await canvas.getAttribute('data-intro-target'))!);
+  await show(75.02, 'worm-release-after');
+  for (const [attr, before] of [
+    ['data-intro-camera', beforeCamera],
+    ['data-intro-target', beforeTarget],
+  ] as const) {
+    const after = JSON.parse((await canvas.getAttribute(attr))!);
+    expect(Math.hypot(...after.map((v: number, i: number) => v - before[i]))).toBeLessThan(0.8);
+  }
+  await expect(canvas).toHaveAttribute('data-intro-bullet', 'false');
+  await expect(canvas).toHaveAttribute('data-intro-eagle', 'true');
+  await show(78.3, 'worm-sun-bullet');
   await expect(canvas).toHaveAttribute('data-intro-bullet', 'true');
   expect(Number(await canvas.getAttribute('data-solar-alignment'))).toBeLessThan(0.03);
   await show(84, 'worm-volume-clouds');
@@ -254,7 +276,14 @@ test('sun silhouette, cloud depth, forward flight and exhausted landing are read
   expect(Number(await canvas.getAttribute('data-worm-surface-min-y'))).toBeGreaterThanOrEqual(
     0.0399,
   );
+  expect(Number(await canvas.getAttribute('data-worm-roll'))).toBeCloseTo(Math.PI, 4);
   await show(112.6, 'worm-weak-head-lift');
   expect(Number(await canvas.getAttribute('data-intro-head-lift'))).toBeGreaterThan(0.04);
+  expect(Number(await canvas.getAttribute('data-blood-drops'))).toBeGreaterThanOrEqual(24);
+  await show(121, 'worm-unwinding');
+  expect(Number(await canvas.getAttribute('data-worm-roll'))).toBeGreaterThan(0);
+  await show(135, 'worm-stylized-game');
+  expect(await canvas.getAttribute('data-sky-color')).toBe(sky);
+  await expect(canvas).toHaveAttribute('data-cinematic', 'false');
   expect(errors).toEqual([]);
 });

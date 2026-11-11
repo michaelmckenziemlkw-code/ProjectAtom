@@ -1,3 +1,5 @@
+import { cloudSightlineVisibility } from '../core/cloudSightline.ts';
+import type { Point } from '../core/birds.ts';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
@@ -103,8 +105,18 @@ export function createCinematicSky(scene: Scene) {
   sun.setEnabled(false);
   return {
     present(sample: ReturnType<typeof sampleIntro> | null) {
-      const visible = sample !== null && sample.time >= 18 && sample.time < 112;
-      clouds.forEach((cloud) => cloud.setEnabled(visible));
+      clouds.forEach((cloud) => {
+        cloud.setEnabled(true);
+        const sphere = cloud.getBoundingInfo().boundingSphere;
+        cloud.visibility = sample
+          ? cloudSightlineVisibility(
+              sphere.centerWorld.asArray() as Point,
+              sphere.radiusWorld,
+              sample.camera,
+              sample.target,
+            )
+          : 1;
+      });
       sun.setEnabled(sample !== null && sample.falling);
       mist.forEach((plane) => {
         const distance = sample ? Math.abs(plane.position.y - sample.worm[1]) : Infinity;

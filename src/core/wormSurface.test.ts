@@ -46,9 +46,9 @@ test('reference body is one closed indexed surface with fine rings and a full ro
   assert.ok([...edges.values()].every((count) => count === 2));
 });
 
-test('rotating head and every surface vertex stay above ground before and after the impact cut', () => {
+test('rotating head and every surface vertex stay above ground through impact and unwinding', () => {
   let checked = 0;
-  for (let time = 109.5; time <= 110.5; time += 0.0125) {
+  for (let time = 109.5; time <= 134.174; time += time < 110.5 ? 0.0125 : 0.25) {
     const s = sampleIntro(time),
       raw = Array.from({ length: 11 }, (_, i) => introSegment(s, i));
     const points = groundWormControls(raw, s.worm, s.rotation);

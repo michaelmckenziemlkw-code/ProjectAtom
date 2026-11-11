@@ -1,4 +1,4 @@
-import { mix, smooth } from './birds.ts';
+import { mix, smooth, rotate } from './birds.ts';
 import type { Point } from './birds.ts';
 import type { sampleIntro } from './cinematic.ts';
 import { WORM_SPACING } from './wormBody.ts';
@@ -6,17 +6,28 @@ export const WORM_RADIUS = 0.083;
 export const WORM_IDLE_Y = 0.13;
 
 function exhausted(sample: ReturnType<typeof sampleIntro>, i: number): Point {
-  const tail = i / 10,
-    still = sample.knockdown;
+  const still = sample.knockdown;
   const lift = sample.headLift * Math.exp(-i * 0.65);
-  return [
-    Math.sin(i * 0.48) * 0.17,
-    0.115 +
+  const unwind = 0.35 * smooth((sample.time - 112) / 7) + 0.65 * sample.rise;
+  const curl = 1 - unwind;
+  let x = 0,
+    z = 0;
+  for (let j = 1; j <= i; j++) {
+    const angle = curl * (1.2 * Math.sin(j * 0.7) + j * 0.25);
+    x += Math.sin(angle) * WORM_SPACING;
+    z -= Math.cos(angle) * WORM_SPACING;
+  }
+  const world: Point = [
+    x,
+    0.13 +
+      curl * Math.sin(i * 0.8) ** 2 * 0.035 +
       lift +
       Math.sin(sample.time * 1.3 - i * 0.2) * 0.002 * (1 - still) +
-      sample.cough * Math.exp(-i * 0.35) * 0.04,
-    -i * WORM_SPACING + Math.sin(i * 0.5) * 0.025 * tail,
+      sample.cough * Math.exp(-i * 0.35) * 0.035,
+    z,
   ];
+  // Keep the body on the water while the whole character slowly rolls off its back.
+  return rotate(world, [0, 0, -sample.rotation[2]]);
 }
 /** Deformation is independent of global tumble. Motion follows the bullet-time clock. */
 export function introSegment(sample: ReturnType<typeof sampleIntro>, i: number): Point {
@@ -29,12 +40,14 @@ export function introSegment(sample: ReturnType<typeof sampleIntro>, i: number):
   ];
   if (sample.carried) return carried;
   if (sample.falling) {
-    const wave = Math.pow(tail, 1.05);
-    const free: Point = [
-      Math.sin(t * 0.78 - i * 0.64) * 0.22 * wave,
-      0.17 + Math.sin(t * 0.61 - i * 0.48) * 0.11 * wave,
-      -i * WORM_SPACING + Math.sin(t * 0.5 - i * 0.4) * 0.025 * wave,
-    ];
+    const free: Point = [0, 0.17, 0];
+    for (let j = 1; j <= i; j++) {
+      const bend = 0.9 * Math.sin(t * 0.9 - j * 0.65) + 0.45 * Math.sin(t * 0.5 + j * 0.36);
+      const arch = 0.5 * Math.sin(t * 0.7 - j * 0.8);
+      free[0] += Math.sin(bend) * Math.cos(arch) * WORM_SPACING;
+      free[1] += Math.sin(arch) * WORM_SPACING;
+      free[2] -= Math.cos(bend) * Math.cos(arch) * WORM_SPACING;
+    }
     const flex = mix(carried, free, smooth((t - 75) / 1.2));
     return mix(flex, exhausted(sample, i), sample.landingBlend);
   }

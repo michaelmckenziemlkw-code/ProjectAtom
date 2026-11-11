@@ -1,3 +1,4 @@
+import { WORLD_PALETTE as palette } from './palette.ts';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
@@ -9,19 +10,19 @@ import { GESTURE_DURATION, sampleGesture } from '../core/motion.ts';
 import { ellipsoid, material } from './meshTools.ts';
 
 export function createEnvironment(scene: Scene) {
-  const dirt = material(scene, 'loam', '#68543c');
-  const moss = material(scene, 'moss', '#485841');
-  const rockMat = material(scene, 'stone', '#77796a');
-  const bark = material(scene, 'bark', '#44362a');
-  const green = material(scene, 'leaves', '#5d7950');
-  const leafGold = material(scene, 'fallen-leaf', '#bb8945');
-  const grooveMat = material(scene, 'furrows', '#3c3022');
+  const dirt = material(scene, 'loam', palette.loam);
+  const moss = material(scene, 'moss', palette.moss);
+  const rockMat = material(scene, 'stone', palette.stone);
+  const bark = material(scene, 'bark', palette.bark);
+  const green = material(scene, 'leaves', palette.leaves);
+  const leafGold = material(scene, 'fallen-leaf', palette.leafGold);
+  const grooveMat = material(scene, 'furrows', palette.grooves);
   for (const mat of [moss, rockMat, bark, green, leafGold, grooveMat])
     mat.specularColor = Color3.Black();
   // Local generated texture: no external images, CDN, or network during play.
   const texture = new DynamicTexture('soil-grain', { width: 512, height: 512 }, scene, false);
   const ctx = texture.getContext();
-  ctx.fillStyle = '#897150';
+  ctx.fillStyle = '#b58d79';
   ctx.fillRect(0, 0, 512, 512);
   let seed = 1247;
   const random = () => {
@@ -29,7 +30,7 @@ export function createEnvironment(scene: Scene) {
     return seed / 4294967296;
   };
   for (let i = 0; i < 6500; i++) {
-    ctx.fillStyle = random() > 0.5 ? '#947b58' : '#735e42';
+    ctx.fillStyle = random() > 0.5 ? '#c49d86' : '#9b766b';
     ctx.fillRect(random() * 512, random() * 512, 1 + random() * 3, 1 + random() * 3);
   }
   texture.update();

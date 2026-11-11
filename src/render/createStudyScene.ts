@@ -1,3 +1,4 @@
+import { WORLD_PALETTE as palette } from './palette.ts';
 import { createCinematicSky } from './cinematicSky.ts';
 import { ColorCurves } from '@babylonjs/core/Materials/colorCurves';
 import { MOUTH } from '../core/birds.ts';
@@ -35,11 +36,11 @@ export async function createStudyScene(
   const grade = new ColorCurves();
   scene.imageProcessingConfiguration.colorCurves = grade;
   scene.imageProcessingConfiguration.colorCurvesEnabled = true;
-  scene.clearColor = new Color4(0.18, 0.17, 0.2, 1);
+  scene.clearColor = new Color4(...palette.sky, 1);
   scene.ambientColor = new Color3(0.19, 0.16, 0.19);
   scene.fogMode = Scene.FOGMODE_EXP2;
   scene.fogDensity = 0.045;
-  scene.fogColor = new Color3(0.29, 0.25, 0.28);
+  scene.fogColor = new Color3(...palette.fog);
   const camera = new ArcRotateCamera(
     'worm-camera',
     -Math.PI / 2,
@@ -52,12 +53,12 @@ export async function createStudyScene(
   camera.minZ = 0.08; // Controls are supplied by Pointer Lock, never by drag/orbit inputs.
   const fill = new HemisphericLight('sky', new Vector3(-0.5, 1, -0.4), scene);
   fill.intensity = 0.75;
-  fill.diffuse = new Color3(0.66, 0.72, 0.86);
-  fill.groundColor = new Color3(0.26, 0.22, 0.18);
+  fill.diffuse = new Color3(...palette.fill);
+  fill.groundColor = new Color3(0.32, 0.37, 0.4);
   const sun = new DirectionalLight('late-sun', new Vector3(-0.65, -1, 0.35), scene);
   sun.position.set(7, 10, -5);
   sun.intensity = 1.05;
-  sun.diffuse = new Color3(1, 0.78, 0.61);
+  sun.diffuse = new Color3(...palette.sun);
   const environment = createEnvironment(scene);
   let actor;
   try {
@@ -134,11 +135,12 @@ export async function createStudyScene(
       eagle.present(sample.eaglePose, seconds, sample.eagleVisible);
       scene.fogDensity = 0.006 + 0.039 * sample.handoff;
       leaf.setEnabled(false);
-      sun.diffuse.set(1, 0.69 + 0.09 * sample.handoff, 0.5 + 0.11 * sample.handoff);
-      scene.clearColor.set(0.2 - 0.02 * sample.handoff, 0.17, 0.24 - 0.04 * sample.handoff, 1);
-      scene.fogColor.set(0.31 - 0.02 * sample.handoff, 0.25, 0.31 - 0.03 * sample.handoff);
-      sun.intensity = 0.75 + 0.3 * sample.handoff;
-      fill.intensity = 0.8 - 0.05 * sample.handoff;
+      sun.diffuse.set(...palette.sun);
+      scene.clearColor.set(...palette.sky, 1);
+      scene.fogColor.set(...palette.fog);
+      sun.intensity = 1.05;
+      fill.intensity = 0.75;
+      fill.diffuse.set(...palette.fill);
       environment.present('tap', seconds, false);
       worm.presentIntro(sample);
       introStage.present(seconds, worm.mouthWorldPosition);
@@ -149,13 +151,13 @@ export async function createStudyScene(
         sample.phase === 'flight' ||
         sample.phase === 'attack'
       ) {
-        scene.clearColor.set(0.12, 0.35, 0.61, 1);
-        scene.fogColor.set(0.56, 0.72, 0.89);
+        scene.clearColor.set(...palette.sky, 1);
+        scene.fogColor.set(...palette.fog);
         scene.fogDensity = 0.002;
         fill.intensity = 0.85 - 0.6 * sample.solarStrength;
         fill.diffuse.set(0.68, 0.82, 1);
         sun.intensity = 0.95 - 0.55 * sample.solarStrength;
-      } else fill.diffuse.set(0.66, 0.72, 0.86);
+      } else fill.diffuse.set(...palette.fill);
       const exhaustion = sample.phase === 'aftermath' ? 1 - sample.handoff : 0;
       grade.globalSaturation = -30 * exhaustion;
       scene.imageProcessingConfiguration.exposure = 1 - 0.16 * exhaustion;
@@ -198,6 +200,16 @@ export async function createStudyScene(
         scene.getTransformMatrix(),
         viewport,
       );
+      const sight = Vector3.FromArray(sample.target).subtract(camera.position);
+      const blockers = scene.multiPickWithRay(
+        new Ray(camera.position, sight.normalizeToNew(), sight.length() - 0.2),
+        (mesh) => mesh.name.startsWith('sky-cloud-bank') && mesh.visibility > 0.05,
+      );
+      canvas.dataset.cloudViewBlockers = String(blockers?.length ?? 0);
+      canvas.dataset.skyColor = scene.clearColor.toHexString();
+      canvas.dataset.wormRoll = String(sample.rotation[2]);
+      canvas.dataset.introCamera = JSON.stringify(camera.position.asArray());
+      canvas.dataset.introTarget = JSON.stringify(camera.getTarget().asArray());
       canvas.dataset.solarAlignment = String(
         Math.hypot(projectedSun.x - projectedTarget.x, projectedSun.y - projectedTarget.y) /
           engine.getRenderWidth(),
@@ -252,15 +264,16 @@ export async function createStudyScene(
       sky.present(null);
       grade.globalSaturation = 0;
       scene.imageProcessingConfiguration.exposure = 1;
-      fill.diffuse.set(0.66, 0.72, 0.86);
+      fill.diffuse.set(...palette.fill);
       crow.hide();
       eagle.hide();
       scene.fogDensity = 0.045;
-      scene.clearColor.set(0.18, 0.17, 0.2, 1);
-      scene.fogColor.set(0.29, 0.25, 0.28);
-      sun.diffuse.set(1, 0.78, 0.61);
+      scene.clearColor.set(...palette.sky, 1);
+      scene.fogColor.set(...palette.fog);
+      sun.diffuse.set(...palette.sun);
       sun.intensity = 1.05;
       fill.intensity = 0.75;
+      canvas.dataset.skyColor = scene.clearColor.toHexString();
       camera.fov = 1;
       introStage.present(null);
       const motion = beetleMotion(seconds, walk.beddingAt);

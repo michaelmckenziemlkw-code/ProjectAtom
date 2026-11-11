@@ -16,7 +16,8 @@ export const INTRO_DURATION = music.audioDuration;
 export const RELEASE_TIME = 75;
 export const IMPACT_TIME = 110;
 export const BULLET_DURATION = 0.7;
-export const COUGH_TIMES = [5.5, 6.4, 14, 119.2] as const;
+export const SOLAR_TIME = RELEASE_TIME + 3;
+export const COUGH_TIMES = [5.5, 6.4, 14, 112.4, 115.8, 119.2, 122.6, 126.1] as const;
 const CONTACT: Point = [0, GRIP_SEGMENT[1], -5.2 + GRIP_SEGMENT[2]];
 const groundCrow = add(CONTACT, beakLocal(1.3).map((v) => -v * CROW_SCALE) as Point);
 const FORWARD_ACCEL = 0.04;
@@ -43,12 +44,12 @@ function crowPath(t: number): Point {
 }
 function eaglePath(t: number): Point {
   const contact = add(cruise(RELEASE_TIME), [1, 3, -1.5]);
-  if (t < RELEASE_TIME) return mix(add(contact, [25, 16, 28]), contact, smooth((t - 65) / 10));
+  if (t < RELEASE_TIME) return mix(add(contact, [-30, 16, -28]), contact, smooth((t - 65) / 10));
   const s = t - RELEASE_TIME;
-  const p1 = add(contact, [-3, -1, -3.4]),
-    p2 = add(contact, [-6, 2, 8]),
-    p3 = add(contact, [0, 6, 16]);
-  if (s >= 3) return add(p3, [6 * (s - 3), 4 * (s - 3), 8 * (s - 3)]);
+  const p1 = add(contact, [6, -2, 6]),
+    p2 = add(contact, [12, 0, 15]),
+    p3 = add(contact, [16, 6, 26]);
+  if (s >= 3) return add(p3, [4 * (s - 3), 6 * (s - 3), 11 * (s - 3)]);
   const u = s / 3,
     v = 1 - u;
   return contact.map(
@@ -96,30 +97,58 @@ export const SUN_DIRECTION: Point = [1, 0.32, 0.08].map(
   (v) => v / Math.hypot(1, 0.32, 0.08),
 ) as Point;
 export const SUN_RADIUS = 17;
+function fallPosition(elapsed: number): Point {
+  const fall = fallClock(elapsed).seconds / FALL_SECONDS;
+  return [
+    release.position[0] * (1 - smooth(fall)) + Math.sin(fall * Math.PI * 2) * 0.6,
+    Math.max(
+      0,
+      FALL_HEIGHT -
+        FALL_SECONDS *
+          (FALL_START_SPEED * fall + 0.5 * (FALL_END_SPEED - FALL_START_SPEED) * fall * fall),
+    ),
+    release.position[2] +
+      (-5.2 - release.position[2]) * smooth(fall) +
+      Math.sin(fall * Math.PI) * 0.5,
+  ];
+}
+/** Integrate smooth speed ramps: approach the portrait first, slow there, repay the lost time. */
+export function fallClock(elapsed: number) {
+  const s = Math.max(0, Math.min(FALL_SECONDS, elapsed));
+  const fast = (FALL_SECONDS - (2.6 + 0.4 * 0.56 + 0.7 * 0.12 + 0.5 * 0.12)) / 30.8;
+  const ramps = [
+    [0, 2.6, 1, 1],
+    [2.6, 0.4, 1, 0.12],
+    [3, BULLET_DURATION, 0.12, 0.12],
+    [3.7, 1, 0.12, fast],
+    [4.7, FALL_SECONDS - 4.7, fast, fast],
+  ];
+  let seconds = 0,
+    rate = 1;
+  for (const [start, duration, from, to] of ramps as [number, number, number, number][]) {
+    const u = Math.max(0, Math.min(1, (s - start) / duration));
+    seconds += duration * (from * u + (to - from) * (u ** 3 - 0.5 * u ** 4));
+    if (s >= start) rate = from + (to - from) * smooth(u);
+  }
+  return { seconds, rate };
+}
+function tumble(elapsed: number): Point {
+  const spin = fallClock(elapsed).seconds / 20;
+  return [
+    spin * Math.PI * 2,
+    release.rotation[1] + spin * Math.PI * 0.8,
+    release.rotation[2] + spin * Math.PI * 2,
+  ];
+}
 export const SUN_POSITION = add(
-  add(release.position, rotate([0, 0.17, -1.05], release.rotation)),
+  add(fallPosition(3), rotate([0, 0.17, -1.05], tumble(3))),
   SUN_DIRECTION.map((v) => v * 90) as Point,
 );
-
-/** Slow the release, then smoothly repay the lost motion time without changing the music/impact. */
-export function fallClock(elapsed: number) {
-  const s = Math.max(0, Math.min(FALL_SECONDS, elapsed)),
-    slow = 0.12,
-    ramp = 1;
-  const fast =
-    (FALL_SECONDS - slow * (BULLET_DURATION + ramp / 2)) /
-    (FALL_SECONDS - BULLET_DURATION - ramp / 2);
-  if (s <= BULLET_DURATION) return { seconds: slow * s, rate: slow };
-  const u = Math.min(1, (s - BULLET_DURATION) / ramp);
-  const integral = u ** 3 - 0.5 * u ** 4;
-  return {
-    seconds:
-      slow * BULLET_DURATION +
-      slow * u * ramp +
-      (fast - slow) * ramp * integral +
-      Math.max(0, s - BULLET_DURATION - ramp) * fast,
-    rate: slow + (fast - slow) * smooth(u),
-  };
+const RELEASE_OFFSET: Point = [12, 5, 11];
+function attackFrame(t: number, crow: Point, eagle: Point, worm: Point, rotation: Point) {
+  const push = smooth((t - 72) / 3);
+  const target = mix(mix(crow, eagle, 0.5), add(worm, rotate([0, 0.17, -1.05], rotation)), push);
+  return { target, camera: add(target, mix([43, 16, 36], RELEASE_OFFSET, push)) };
 }
 export function sampleIntro(seconds: number) {
   const time = Math.max(0, Math.min(INTRO_DURATION, seconds));
@@ -157,40 +186,29 @@ export function sampleIntro(seconds: number) {
   const worm: Point = carried
     ? attachment.position
     : falling
-      ? [
-          release.position[0] * (1 - smooth(fall)) + Math.sin(fall * Math.PI * 2) * 0.6,
-          Math.max(
-            0,
-            FALL_HEIGHT -
-              FALL_SECONDS *
-                (FALL_START_SPEED * fall + 0.5 * (FALL_END_SPEED - FALL_START_SPEED) * fall * fall),
-          ),
-          release.position[2] +
-            (-5.2 - release.position[2]) * smooth(fall) +
-            Math.sin(fall * Math.PI) * 0.5,
-        ]
+      ? fallPosition(time - RELEASE_TIME)
       : [0, 0, -5.2];
   const landingBlend = falling ? smooth((time - 109.4) / 0.6) : time >= IMPACT_TIME ? 1 : 0;
-  const spin = clock.seconds / 20;
+  const recoveryRoll = Math.PI * (1 - smooth((time - 111.3) / 12));
   let rotation: Point = falling
-    ? [
-        spin * Math.PI * 2,
-        release.rotation[1] + spin * Math.PI * 0.8,
-        release.rotation[2] + spin * Math.PI * 2,
-      ]
+    ? tumble(time - RELEASE_TIME)
     : carried
       ? attachment.rotation
-      : [0, 0, 0];
+      : time >= IMPACT_TIME
+        ? [0, 0, recoveryRoll]
+        : [0, 0, 0];
   if (falling)
-    rotation = rotation.map(
-      (v) => v + (Math.round(v / (Math.PI * 2)) * Math.PI * 2 - v) * landingBlend,
-    ) as Point;
+    rotation = rotation.map((v, i) => {
+      const rest = i === 2 ? Math.PI : 0;
+      const destination = rest + Math.round((v - rest) / (Math.PI * 2)) * Math.PI * 2;
+      return v + (destination - v) * landingBlend;
+    }) as Point;
   const cough = COUGH_TIMES.reduce((sum, cue) => {
     const dt = time - cue;
     return sum + (dt >= 0 && dt < 0.65 ? Math.sin((dt / 0.65) * Math.PI) * Math.exp(-dt * 3) : 0);
   }, 0);
   const closeup = (time >= 40 && time < 44) || (time >= 58 && time < 63);
-  const bullet = falling && time < RELEASE_TIME + BULLET_DURATION;
+  const bullet = falling && time >= SOLAR_TIME && time < SOLAR_TIME + BULLET_DURATION;
   const shot = closeup
     ? 9
     : time < 4
@@ -228,20 +246,31 @@ export function sampleIntro(seconds: number) {
     target = mix(crow, attachment.position, 0.35);
     camera = add(target, [24, 9, -34]);
   } else if (shot === 6) {
-    target = mix(crow, eagle, 0.5);
-    camera = add(target, mix([66, 22.5, 18], [51, 15, 22.5], smooth((time - 67) / 8)));
+    ({ target, camera } = attackFrame(time, crow, eagle, worm, rotation));
   } else if (shot === 7) {
-    target = add(worm, rotate([0, 0.17, -1.05], rotation));
-    const solarOffset = SUN_DIRECTION.map((v) => -v * 8) as Point;
-    const orbit = smooth((time - 75.7) / 4);
-    const direction = mix(solarOffset, [3.8, 1.5, 5.5], orbit);
-    const radius = 8 + (Math.hypot(3.8, 1.5, 5.5) - 8) * orbit;
-    const offset = direction.map((v) => (v * radius) / Math.hypot(...direction)) as Point;
+    const centre = add(worm, rotate([0, 0.17, -1.05], rotation));
+    const u = smooth((time - RELEASE_TIME) / 3);
+    const solarYaw = Math.atan2(-SUN_DIRECTION[0], -SUN_DIRECTION[2]);
+    const startYaw = Math.atan2(RELEASE_OFFSET[0], RELEASE_OFFSET[2]);
+    const orbitalTime = Math.max(0, time - SOLAR_TIME - BULLET_DURATION);
+    const orbit = 0.48 * Math.sin(orbitalTime * 0.25) * smooth(orbitalTime / 3);
+    const yaw = startYaw + (solarYaw - startYaw) * u + orbit;
+    const radius = Math.hypot(...RELEASE_OFFSET) + (8 - Math.hypot(...RELEASE_OFFSET)) * u;
+    const elevation =
+      Math.asin(5 / Math.hypot(...RELEASE_OFFSET)) +
+      (Math.asin(-SUN_DIRECTION[1]) - Math.asin(5 / Math.hypot(...RELEASE_OFFSET))) * u +
+      0.16 * Math.sin(orbitalTime * 0.37) * smooth(orbitalTime / 3);
+    const offset: Point = [
+      Math.sin(yaw) * Math.cos(elevation) * radius,
+      Math.sin(elevation) * radius,
+      Math.cos(yaw) * Math.cos(elevation) * radius,
+    ];
+    target = centre;
     camera = add(target, mix(offset, [0.45, 2.5, 4.3], smooth((time - 107) / 3)));
   } else {
     const after = time - IMPACT_TIME;
-    camera = mix([0.15, 5.2, -6.2], [1.2, 0.8, -3.8], smooth(after - 1.1));
-    target = [0, 0.12, -6.2];
+    camera = mix([0.7, 5.2, -5.7], [1.4, 0.8, -3.8], smooth(after - 1.1));
+    target = mix([0.6, 0.12, -5.7], [0, 0.12, -6.2], smooth((time - 119) / 5));
     camera = mix(camera, [0, 2.38, -8.98], smooth((time - 124) / (INTRO_DURATION - 124)));
     target = mix(target, [0, 0.55, -5.2], smooth((time - 124) / (INTRO_DURATION - 124)));
   }
@@ -259,7 +288,7 @@ export function sampleIntro(seconds: number) {
     shot,
     closeup,
     bullet,
-    solarStrength: falling ? 1 - smooth((time - 75.7) / 1.3) : 0,
+    solarStrength: falling ? smooth((time - 76.5) / 1.5) * (1 - smooth((time - 78.7) / 2)) : 0,
     fallSpeed: falling
       ? (FALL_START_SPEED + (FALL_END_SPEED - FALL_START_SPEED) * fall) * clock.rate
       : 0,
@@ -271,11 +300,11 @@ export function sampleIntro(seconds: number) {
     rotation,
     crow,
     crowPose: crowPoseSample,
-    // The release cuts to an isolated solar portrait; the pursuit stays outside this shot.
-    crowVisible: time >= 18 && time < RELEASE_TIME,
+    // Birds remain in the continuous release shot, then leave the falling camera behind.
+    crowVisible: time >= 18 && time < 85,
     eagle,
     eaglePose,
-    eagleVisible: time >= 65 && time < RELEASE_TIME,
+    eagleVisible: time >= 65 && time < 85,
     carried,
     falling,
     grip: attachment.grip,
