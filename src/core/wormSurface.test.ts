@@ -7,6 +7,8 @@ import {
   headVerticalExtent,
   WORM_FLOOR,
   wormRadius,
+  HEAD_RADII,
+  WORM_ANNULI,
 } from './wormSurface.ts';
 import { WORM_SPACING } from './wormBody.ts';
 import { introSegment } from './wormPose.ts';
@@ -22,6 +24,11 @@ test('reference body is one closed indexed surface with fine rings and a full ro
   assert.ok(mesh.positions.length / 3 > 1500);
   assert.ok(wormRadius(0.9) > wormRadius(0.1) * 0.9);
   assert.ok(wormRadius(0.97) > 0.07);
+  assert.ok(HEAD_RADII[0] <= wormRadius(0));
+  assert.ok(HEAD_RADII[2] / HEAD_RADII[0] < 1.2);
+  const crest = wormRadius(4 / WORM_ANNULI),
+    seam = wormRadius(4.5 / WORM_ANNULI);
+  assert.ok((crest - seam) / crest >= 0.1 && (crest - seam) / crest <= 0.15);
   const edges = new Map<string, number>();
   // UV seam has duplicate positions; weld before checking watertightness.
   const keys = mesh.positions.reduce<string[]>((out, _, i) => {

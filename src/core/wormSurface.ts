@@ -1,9 +1,18 @@
 import { add, rotate } from './birds.ts';
 import type { Point } from './birds.ts';
-export const SURFACE_RINGS = 112;
+export const SURFACE_RINGS = 160;
 export const SURFACE_SIDES = 16;
 export const WORM_FLOOR = 0.04;
-export const HEAD_RADII: Point = [0.105, 0.082, 0.16];
+// Rounded anterior cap, as wide as the trunk: no broad skull or narrow neck.
+export const HEAD_RADII: Point = [0.081, 0.073, 0.095];
+export const HEAD_EYE: Point = [0.057, 0.016, 0.05];
+export const HEAD_EYE_RADII: Point = [0.007, 0.014, 0.015];
+export const HEAD_LID: Point = [0.056, 0.027, 0.05];
+export const HEAD_MOUTH: Point = [0, -0.018, 0.091];
+export const WORM_ANNULI = 32;
+export function annulusGroove(u: number): number {
+  return Math.pow(0.5 - 0.5 * Math.cos(u * Math.PI * 2 * WORM_ANNULI), 3);
+}
 const subtract = (a: Point, b: Point): Point => a.map((v, i) => v - b[i]!) as Point;
 const normal = (a: Point): Point => {
   const n = Math.hypot(...a) || 1;
@@ -21,7 +30,7 @@ const inverseRotate = (p: Point, r: Point): Point => [
   dot(p, rotate([0, 0, 1], r)),
 ];
 export function wormRadius(u: number): number {
-  const ring = 1 - 0.025 * Math.pow(0.5 + 0.5 * Math.cos(u * Math.PI * 64), 8);
+  const ring = 1 - 0.12 * annulusGroove(u);
   const girdle = 1 + 0.07 * Math.exp(-Math.pow((u - 0.26) / 0.055, 4));
   // Uniform trunk, with a hemispherical rounding only over the final four percent.
   const end = Math.max(0, Math.min(1, (u - 0.96) / 0.04));
@@ -35,26 +44,15 @@ export function headVerticalExtent(points: Point[], rotation: Point): number {
   const angles = wormHeadAngles(points);
   const shapes: [Point, Point][] = [
     [[0, 0, 0], HEAD_RADII],
-    [
-      [0.083, 0.025, 0.075],
-      [0.01, 0.02, 0.025],
-    ],
-    [
-      [-0.083, 0.025, 0.075],
-      [0.01, 0.02, 0.025],
-    ],
-    [
-      [0.08, 0.039, 0.075],
-      [0.01, 0.008, 0.023],
-    ],
-    [
-      [-0.08, 0.039, 0.075],
-      [0.01, 0.008, 0.023],
-    ],
-    [
-      [0, -0.025, 0.153],
-      [0.02, 0.004, 0.005],
-    ],
+    ...[-1, 1].flatMap((side): [Point, Point][] => [
+      [[side * HEAD_EYE[0], HEAD_EYE[1], HEAD_EYE[2]], HEAD_EYE_RADII],
+      // Covers the full eyelid envelope both resting and lowered after impact.
+      [
+        [side * HEAD_LID[0], HEAD_LID[1] - 0.004, HEAD_LID[2]],
+        [0.009, 0.015, 0.015],
+      ],
+    ]),
+    [HEAD_MOUTH, [0.015, 0.005, 0.006]],
   ];
   return Math.max(
     ...shapes.map(([centre, radii]) => {
@@ -169,7 +167,7 @@ export function buildWormSurface(
       }
     }
   }
-  // Closed ends; the first cap is hidden inside the head, the last forms the tapered tail tip.
+  // Closed ends; the first cap is hidden inside the head, the last closes the rounded tail.
   for (const [u, reverse] of [
     [0, false],
     [1, true],

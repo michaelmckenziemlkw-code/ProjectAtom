@@ -1,3 +1,4 @@
+import { annulusGroove } from '../core/wormSurface.ts';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Scene } from '@babylonjs/core/scene';
@@ -56,9 +57,11 @@ export function createWormSkin(scene: Scene) {
         const mask = face
           ? smooth((n + fine * 0.16 - 0.63) / 0.12) * 0.23
           : smooth((n + (fine - 0.5) * 0.35 - (1 - a.patchCoverage)) / 0.18);
-        const base: RGB = face ? a.face : a.skin;
+        const base: RGB = face
+          ? (a.face.map((v, i) => v * 0.75 + a.skin[i]! * 0.25) as RGB)
+          : a.skin;
         const girdle = face ? 0 : smooth((v - 0.205) / 0.015) * (1 - smooth((v - 0.3) / 0.015));
-        const ring = face ? 1 : 1 - 0.1 * Math.pow(0.5 + 0.5 * Math.cos(v * Math.PI * 64), 10);
+        const ring = face ? 1 : 1 - 0.22 * annulusGroove(v);
         const light = (face ? 0.96 : 0.88 + 0.1 * Math.sin(u * Math.PI * 2)) + (fine - 0.5) * 0.1;
         const offset = (y * size.width + x) * 4;
         for (let channel = 0; channel < 3; channel++) {

@@ -4,6 +4,10 @@ import {
   groundWormControls,
   wormHeadAngles,
   HEAD_RADII,
+  HEAD_EYE,
+  HEAD_EYE_RADII,
+  HEAD_LID,
+  HEAD_MOUTH,
 } from '../../core/wormSurface.ts';
 import { DEFAULT_WORM_CONDITION } from '../../core/wormAppearance.ts';
 import type { Point } from '../../core/birds.ts';
@@ -50,16 +54,16 @@ export function createProceduralWorm(scene: Scene) {
     ellipsoid(
       scene,
       'worm-eye',
-      new Vector3(side * 0.083, 0.025, 0.075),
-      new Vector3(0.01, 0.02, 0.025),
+      new Vector3(side * HEAD_EYE[0], HEAD_EYE[1], HEAD_EYE[2]),
+      Vector3.FromArray(HEAD_EYE_RADII),
       eyeMat,
       head,
     );
     const lid = ellipsoid(
       scene,
       'worm-tired-lid',
-      new Vector3(side * 0.08, 0.039, 0.075),
-      new Vector3(0.01, 0.006, 0.023),
+      new Vector3(side * HEAD_LID[0], HEAD_LID[1], HEAD_LID[2]),
+      new Vector3(0.008, 0.0045, 0.014),
       headSkin,
       head,
     );
@@ -68,8 +72,8 @@ export function createProceduralWorm(scene: Scene) {
     ellipsoid(
       scene,
       'worm-eye-shine',
-      new Vector3(side * 0.092, 0.031, 0.077),
-      new Vector3(0.0015, 0.002, 0.002),
+      new Vector3(side * 0.063, 0.02, 0.052),
+      new Vector3(0.001, 0.0015, 0.0015),
       pearl,
       head,
     );
@@ -78,11 +82,11 @@ export function createProceduralWorm(scene: Scene) {
     'worm-small-mouth',
     {
       path: [
-        new Vector3(-0.017, -0.027, 0.148),
-        new Vector3(0, -0.022, 0.155),
-        new Vector3(0.017, -0.027, 0.148),
+        new Vector3(-0.012, -0.019, 0.089),
+        new Vector3(0, -0.015, 0.093),
+        new Vector3(0.012, -0.019, 0.089),
       ],
-      radius: 0.002,
+      radius: 0.0018,
       tessellation: 6,
     },
     scene,
@@ -140,7 +144,7 @@ export function createProceduralWorm(scene: Scene) {
     condition,
     get mouthWorldPosition() {
       return Vector3.TransformCoordinates(
-        new Vector3(0, -0.025, 0.153),
+        Vector3.FromArray(HEAD_MOUTH),
         head.computeWorldMatrix(true),
       );
     },
@@ -159,8 +163,8 @@ export function createProceduralWorm(scene: Scene) {
     },
     presentIntro(sample: ReturnType<typeof sampleIntro>) {
       for (const lid of lids) {
-        lid.position.y = 0.039 - sample.knockdown * 0.014;
-        lid.scaling.y = 0.006 + sample.knockdown * 0.014;
+        lid.position.y = HEAD_LID[1] - sample.knockdown * 0.01;
+        lid.scaling.y = 0.0045 + sample.knockdown * 0.008;
       }
       presentPoints(
         segments.map((_, i) => introSegment(sample, i)),
@@ -170,8 +174,8 @@ export function createProceduralWorm(scene: Scene) {
     },
     present(walk: WalkSession, seconds: number) {
       for (const lid of lids) {
-        lid.position.y = 0.039;
-        lid.scaling.y = 0.006;
+        lid.position.y = HEAD_LID[1];
+        lid.scaling.y = 0.0045;
       }
       const raw = segments.map((_, i): Point => {
         const p = walk.body.pose(i),
