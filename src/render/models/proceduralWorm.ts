@@ -63,7 +63,7 @@ export function createProceduralWorm(scene: Scene) {
       scene,
       'worm-tired-lid',
       new Vector3(side * HEAD_LID[0], HEAD_LID[1], HEAD_LID[2]),
-      new Vector3(0.008, 0.0045, 0.014),
+      new Vector3(0.01, 0.0055, 0.017),
       headSkin,
       head,
     );
@@ -72,8 +72,8 @@ export function createProceduralWorm(scene: Scene) {
     ellipsoid(
       scene,
       'worm-eye-shine',
-      new Vector3(side * 0.063, 0.02, 0.052),
-      new Vector3(0.001, 0.0015, 0.0015),
+      new Vector3(side * 0.066, 0.021, 0.055),
+      new Vector3(0.0013, 0.0018, 0.0018),
       pearl,
       head,
     );
@@ -164,7 +164,7 @@ export function createProceduralWorm(scene: Scene) {
     presentIntro(sample: ReturnType<typeof sampleIntro>) {
       for (const lid of lids) {
         lid.position.y = HEAD_LID[1] - sample.knockdown * 0.01;
-        lid.scaling.y = 0.0045 + sample.knockdown * 0.008;
+        lid.scaling.y = 0.0055 + sample.knockdown * 0.0095;
       }
       presentPoints(
         segments.map((_, i) => introSegment(sample, i)),
@@ -175,7 +175,7 @@ export function createProceduralWorm(scene: Scene) {
     present(walk: WalkSession, seconds: number) {
       for (const lid of lids) {
         lid.position.y = HEAD_LID[1];
-        lid.scaling.y = 0.0045;
+        lid.scaling.y = 0.0055;
       }
       const raw = segments.map((_, i): Point => {
         const p = walk.body.pose(i),

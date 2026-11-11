@@ -2,7 +2,7 @@ import { Frustum } from '@babylonjs/core/Maths/math.frustum';
 import { WORLD_PALETTE as palette } from './palette.ts';
 import { createCinematicSky } from './cinematicSky.ts';
 import { ColorCurves } from '@babylonjs/core/Materials/colorCurves';
-import { MOUTH, crowGraspTargets } from '../core/birds.ts';
+import { MOUTH, crowGraspTargets, smooth as smoothGrade } from '../core/birds.ts';
 import { createProceduralBird } from './models/proceduralBird.ts';
 import { sampleIntro, SUN_POSITION } from '../core/cinematic.ts';
 import { createIntroStage } from './introStage.ts';
@@ -154,12 +154,13 @@ export async function createStudyScene(
       ) {
         scene.clearColor.set(...palette.sky, 1);
         scene.fogColor.set(...palette.fog);
-        scene.fogDensity = 0.002;
-        fill.intensity = 0.85 - 0.6 * sample.solarStrength;
-        fill.diffuse.set(0.68, 0.82, 1);
-        sun.intensity = 0.95 - 0.55 * sample.solarStrength;
+        const settle = sample.falling ? sample.landingView : 0;
+        scene.fogDensity = 0.002 + 0.004 * settle;
+        fill.intensity = (0.85 - 0.6 * sample.solarStrength) * (1 - settle) + 0.75 * settle;
+        fill.diffuse.set(0.68 + 0.02 * settle, 0.82 + 0.02 * settle, 1);
+        sun.intensity = (0.95 - 0.55 * sample.solarStrength) * (1 - settle) + 1.05 * settle;
       } else fill.diffuse.set(...palette.fill);
-      const exhaustion = sample.phase === 'aftermath' ? 1 - sample.handoff : 0;
+      const exhaustion = smoothGrade((seconds - 109) / 1.8) * (1 - sample.handoff);
       grade.globalSaturation = -30 * exhaustion;
       scene.imageProcessingConfiguration.exposure = 1 - 0.16 * exhaustion;
       camera.fov = 0.75 + 0.25 * sample.handoff;
@@ -187,6 +188,7 @@ export async function createStudyScene(
         .join(',');
       canvas.dataset.beetleVisible = String(actor.root.isEnabled());
       canvas.dataset.sceneFog = String(scene.fogDensity);
+      canvas.dataset.sceneExposure = String(scene.imageProcessingConfiguration.exposure);
       canvas.dataset.sunTint = sun.diffuse.toHexString();
       const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
       const projectedSun = Vector3.Project(
@@ -368,6 +370,7 @@ export async function createStudyScene(
         .join(',');
       canvas.dataset.beetleVisible = String(actor.root.isEnabled());
       canvas.dataset.sceneFog = String(scene.fogDensity);
+      canvas.dataset.sceneExposure = String(scene.imageProcessingConfiguration.exposure);
       canvas.dataset.sunTint = sun.diffuse.toHexString();
       const tail = walk.body.pose(10);
       Object.assign(canvas.dataset, {

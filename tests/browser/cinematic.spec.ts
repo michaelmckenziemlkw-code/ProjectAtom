@@ -326,9 +326,7 @@ test('eagle spotting insert leads to a rear talon grip, shocked beak and continu
   expect(errors).toEqual([]);
 });
 
-test('eagle stays outside the lens when enabled and flies in through the edge of the pursuit shot', async ({
-  page,
-}) => {
+test('eagle enters the returning flight shot before the cut to the attack', async ({ page }) => {
   await page.clock.install();
   await page.goto('/?seed=12');
   await page.locator('#enter-cinematic').click({ timeout: 60000 });
@@ -347,12 +345,70 @@ test('eagle stays outside the lens when enabled and flies in through the edge of
   }
   await show(53.8, 'worm-eagle-notices');
   await expect(canvas).toHaveAttribute('data-eagle-in-frame', 'true');
-  for (const t of [55.2, 63, 65, 66.8, 67.05]) {
-    await show(t, t === 67.05 ? 'worm-eagle-before-entry' : undefined);
+  for (const t of [55.2, 63]) {
+    await show(t, t === 63 ? 'worm-eagle-before-entry' : undefined);
     await expect(canvas).toHaveAttribute('data-intro-eagle', 'true');
     await expect(canvas).toHaveAttribute('data-eagle-in-frame', 'false');
   }
-  await show(69.8, 'worm-eagle-enters-edge');
-  await show(70.5, 'worm-eagle-entered');
+  await show(64.5, 'worm-eagle-enters-edge');
+  await show(65.8, 'worm-eagle-entered');
+  await expect(canvas).toHaveAttribute('data-intro-shot', '5');
   await expect(canvas).toHaveAttribute('data-eagle-in-frame', 'true');
+  await show(66.6, 'worm-eagle-in-flight-shot');
+  await expect(canvas).toHaveAttribute('data-intro-shot', '5');
+  await expect(canvas).toHaveAttribute('data-eagle-in-frame', 'true');
+});
+
+test('landing camera, exposure and fog remain continuous across the impact and handoff', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto('/?seed=12');
+  await page.locator('#enter-cinematic').click({ timeout: 60000 });
+  const canvas = page.locator('#world');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  const show = async (t: number, name: string) => {
+    const now = Number(await canvas.getAttribute('data-animation-time'));
+    await page.clock.fastForward((t - now) * 1000);
+    await page.clock.runFor(16);
+    await page.screenshot({ path: 'docs/images/' + name + '.png' });
+    expect(Number(await canvas.getAttribute('data-worm-surface-min-y'))).toBeGreaterThanOrEqual(
+      0.0399,
+    );
+    const cinematic = (await canvas.getAttribute('data-cinematic')) === 'true';
+    return {
+      camera: cinematic
+        ? JSON.parse((await canvas.getAttribute('data-intro-camera'))!)
+        : await Promise.all(
+            ['x', 'y', 'z'].map(async (axis) =>
+              Number(await canvas.getAttribute('data-rendered-camera-' + axis)),
+            ),
+          ),
+      target: cinematic
+        ? JSON.parse((await canvas.getAttribute('data-intro-target'))!)
+        : await Promise.all(
+            ['x', 'y', 'z'].map(async (axis) =>
+              Number(await canvas.getAttribute('data-camera-target-' + axis)),
+            ),
+          ),
+      exposure: Number(await canvas.getAttribute('data-scene-exposure')),
+      fog: Number(await canvas.getAttribute('data-scene-fog')),
+    };
+  };
+  await show(109.6, 'worm-landing-approach');
+  const a = await show(109.98, 'worm-landing-before');
+  const b = await show(110.02, 'worm-landing-after');
+  for (const key of ['camera', 'target'] as const)
+    expect(Math.hypot(...a[key].map((v: number, i: number) => v - b[key][i]))).toBeLessThan(0.5);
+  expect(Math.abs(a.exposure - b.exposure)).toBeLessThan(0.02);
+  expect(Math.abs(a.fog - b.fog)).toBeLessThan(0.001);
+  await show(110.8, 'worm-landing-rest');
+  await show(113, 'worm-slow-recovery');
+  const before = await show(133.9, 'worm-handoff-before');
+  const after = await show(134.4, 'worm-handoff-after');
+  for (const key of ['camera', 'target'] as const)
+    expect(
+      Math.hypot(...before[key].map((v: number, i: number) => v - after[key][i])),
+    ).toBeLessThan(0.1);
+  await expect(canvas).toHaveAttribute('data-cinematic', 'false');
 });

@@ -94,7 +94,7 @@ test('both birds fit the attack camera and the fall camera tracks the rotating b
       right[2]! * forward[0]! - right[0]! * forward[2]!,
       right[0]! * forward[1]! - right[1]! * forward[0]!,
     ];
-    for (const bird of time >= 71 ? [s.crow, s.eagle] : [s.crow]) {
+    for (const bird of [s.crow, s.eagle]) {
       const relative = sub(bird, s.camera),
         depth = dot(relative, forward);
       assert.ok(depth > 0);
@@ -257,7 +257,7 @@ test('the eagle notices the crow in a short insert, overtakes from behind and cl
   for (const t of [65, 68, 71, 73]) {
     const s = sampleIntro(t);
     assert.ok(s.eagle[2] < s.crow[2]);
-    assert.ok(s.eaglePose.rotation[1] > -0.3 && s.eaglePose.rotation[1] < 0.1);
+    assert.ok(s.eaglePose.rotation[1] > -0.3 && s.eaglePose.rotation[1] < 1.35);
   }
   assert.equal(sampleIntro(74.1).eaglePose.grasp, 0);
   assert.equal(sampleIntro(74.65).eaglePose.grasp, 1);
@@ -277,21 +277,38 @@ test('the eagle notices the crow in a short insert, overtakes from behind and cl
   }
 });
 
-test('eagle is enabled beyond the lens and starts the pursuit shot beyond the left edge', () => {
+test('eagle is enabled offscreen and enters the returning crow flight shot before the attack cut', () => {
   const sub = (a: number[], b: number[]) => a.map((v, i) => v - b[i]!);
   const dot = (a: number[], b: number[]) => a.reduce((sum, v, i) => sum + v * b[i]!, 0);
   const norm = (a: number[]) => a.map((v) => v / Math.hypot(...a));
-  const radius = EAGLE_SCALE * 2.1; // Conservative envelope including spread wing tips.
-  for (const t of [51, 55, 63, 65, 66.9]) {
+  const k = Math.tan(0.75 / 2) * 1.44;
+  for (const t of [51, 55, 61, 63]) {
     const s = sampleIntro(t),
       forward = norm(sub(s.target, s.camera));
+    const right = norm([forward[2]!, 0, -forward[0]!]),
+      d = sub(s.eagle, s.camera);
     assert.ok(s.eagleVisible);
-    assert.ok(dot(sub(s.eagle, s.camera), forward) + radius < 0);
+    assert.ok(
+      dot(d, forward) + EAGLE_SCALE * 2.1 < 0 ||
+        (dot(d, right) + k * dot(d, forward)) / Math.hypot(1, k) + EAGLE_SCALE * 2.1 < 0,
+    );
   }
-  const s = sampleIntro(67),
-    forward = norm(sub(s.target, s.camera));
-  const right = norm([forward[2]!, 0, -forward[0]!]),
-    relative = sub(s.eagle, s.camera);
-  const k = Math.tan(0.75 / 2) * 1.44;
-  assert.ok((dot(relative, right) + k * dot(relative, forward)) / Math.hypot(1, k) + radius < 0);
+  for (const t of [65.5, 66.5]) {
+    const s = sampleIntro(t),
+      forward = norm(sub(s.target, s.camera));
+    const right = norm([forward[2]!, 0, -forward[0]!]),
+      d = sub(s.eagle, s.camera);
+    assert.equal(s.shot, 5);
+    assert.ok(Math.abs(dot(d, right)) < dot(d, forward) * k);
+  }
+});
+test('landing camera and target reach the resting shot without a cut at impact', () => {
+  let previous = sampleIntro(109.5);
+  for (let t = 109.501; t < 110.5; t += 0.001) {
+    const s = sampleIntro(t);
+    assert.ok(Math.hypot(...s.camera.map((v, i) => v - previous.camera[i]!)) < 0.04);
+    assert.ok(Math.hypot(...s.target.map((v, i) => v - previous.target[i]!)) < 0.04);
+    previous = s;
+  }
+  assert.deepEqual(sampleIntro(110).camera, sampleIntro(110.5).camera);
 });

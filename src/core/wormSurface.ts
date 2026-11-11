@@ -5,9 +5,9 @@ export const SURFACE_SIDES = 16;
 export const WORM_FLOOR = 0.04;
 // Rounded anterior cap, as wide as the trunk: no broad skull or narrow neck.
 export const HEAD_RADII: Point = [0.081, 0.073, 0.095];
-export const HEAD_EYE: Point = [0.057, 0.016, 0.05];
-export const HEAD_EYE_RADII: Point = [0.007, 0.014, 0.015];
-export const HEAD_LID: Point = [0.056, 0.027, 0.05];
+export const HEAD_EYE: Point = [0.059, 0.016, 0.052];
+export const HEAD_EYE_RADII: Point = [0.009, 0.017, 0.018];
+export const HEAD_LID: Point = [0.058, 0.029, 0.052];
 export const HEAD_MOUTH: Point = [0, -0.018, 0.091];
 export const WORM_ANNULI = 32;
 export function annulusGroove(u: number): number {
@@ -48,8 +48,8 @@ export function headVerticalExtent(points: Point[], rotation: Point): number {
       [[side * HEAD_EYE[0], HEAD_EYE[1], HEAD_EYE[2]], HEAD_EYE_RADII],
       // Covers the full eyelid envelope both resting and lowered after impact.
       [
-        [side * HEAD_LID[0], HEAD_LID[1] - 0.004, HEAD_LID[2]],
-        [0.009, 0.015, 0.015],
+        [side * HEAD_LID[0], HEAD_LID[1] - 0.005, HEAD_LID[2]],
+        [0.012, 0.02, 0.019],
       ],
     ]),
     [HEAD_MOUTH, [0.015, 0.005, 0.006]],

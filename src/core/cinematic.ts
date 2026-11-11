@@ -47,8 +47,8 @@ function crowPath(t: number): Point {
 }
 function eaglePath(t: number): Point {
   // Faster flight along the crow's heading: approach from behind, then carry the caught bird.
-  const catchUp = smooth((t - 67) / 7.6);
-  const offset = mix([20, 12, -100], [0, 5.65, -0.8], catchUp);
+  const entry = mix([-60, 12, -35], [-4, 8, -11], smooth((t - 61) / 5.6));
+  const offset = mix(entry, [0, 5.65, -0.8], smooth((t - 66.6) / 8));
   return add(crowPath(t), offset);
 }
 const velocity = (path: (t: number) => Point, t: number): Point =>
@@ -193,7 +193,7 @@ export function sampleIntro(seconds: number) {
   }) as [Point, Point];
   eaglePose.flap *= 1 - eaglePose.grasp * 0.65;
   eaglePose.fold += eaglePose.grasp * 0.12;
-  eaglePose.look = -0.4 * smooth((time - 53.35) / 0.7) * (1 - smooth((time - 55) / 1));
+  eaglePose.look = 0.55 * smooth((time - 53.35) / 0.7) * (1 - smooth((time - 55) / 1));
   eaglePose.dip = 0.12 * smooth((time - 53.35) / 0.7) * (1 - smooth((time - 55) / 1));
   const carried = time >= 32 && time < RELEASE_TIME,
     falling = phase === 'fall';
@@ -207,6 +207,7 @@ export function sampleIntro(seconds: number) {
     : falling
       ? fallPosition(time - RELEASE_TIME)
       : [0, 0, -5.2];
+  const landingView = smooth((time - 107.5) / 2.5);
   const landingBlend = falling ? smooth((time - 109.4) / 0.6) : time >= IMPACT_TIME ? 1 : 0;
   const recoveryRoll = Math.PI * (1 - smooth((time - 111.3) / 12));
   let rotation: Point = falling
@@ -292,11 +293,17 @@ export function sampleIntro(seconds: number) {
       Math.sin(elevation) * radius,
       Math.cos(yaw) * Math.cos(elevation) * radius,
     ];
-    target = centre;
-    camera = add(target, mix(offset, [0.45, 2.5, 4.3], smooth((time - 107) / 3)));
+    // The resting frame travels down with the worm, then becomes the exact ground frame.
+    target = mix(centre, add(worm, [0.6, 0.12, -0.5]), landingView);
+    const frameOffset = mix(offset, [0.1, 5.08, 0], landingView);
+    const frameRadius = radius * (1 - landingView) + Math.hypot(0.1, 5.08) * landingView;
+    camera = add(
+      target,
+      frameOffset.map((v) => (v * frameRadius) / Math.hypot(...frameOffset)) as Point,
+    );
   } else {
     const after = time - IMPACT_TIME;
-    camera = mix([0.7, 5.2, -5.7], [1.4, 0.8, -3.8], smooth(after - 1.1));
+    camera = mix([0.7, 5.2, -5.7], [1.4, 0.8, -3.8], smooth((after - 1.1) / 2.5));
     target = mix([0.6, 0.12, -5.7], [0, 0.12, -6.2], smooth((time - 119) / 5));
     camera = mix(camera, [0, 2.38, -8.98], smooth((time - 124) / (INTRO_DURATION - 124)));
     target = mix(target, [0, 0.55, -5.2], smooth((time - 124) / (INTRO_DURATION - 124)));
@@ -338,6 +345,7 @@ export function sampleIntro(seconds: number) {
     falling,
     grip: attachment.grip,
     landingBlend,
+    landingView,
     knockdown,
     headLift,
     impact: after >= 0 && after < 1.4 ? after / 1.4 : -1,
