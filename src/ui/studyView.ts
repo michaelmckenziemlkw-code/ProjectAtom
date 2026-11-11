@@ -7,7 +7,7 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
     <canvas id="world" tabindex="0" aria-label="Трёхмерный жук в земляном проходе. Перетаскивай мышью для осмотра, колесо приближает."></canvas>
     <header class="topbar"><a class="brand" href="./" aria-label="ProjectAtom — начать заново">A<span>PROJECT<br>ATOM</span></a><div class="chapter"><span class="eyebrow">Исследование 01 / 3D</span><p>У прохода</p></div><button id="settings-button" aria-expanded="false" aria-controls="settings">Настройки</button></header>
     <section id="settings" class="settings panel" hidden aria-label="Настройки сцены">
-      <h2>Настройки</h2><div class="button-row"><button id="game-tab" aria-pressed="true">Игра</button><button id="graphics-tab" aria-pressed="false">Графика</button></div><div id="game-settings">
+      <h2>Настройки</h2><div class="button-row"><button id="game-tab" aria-pressed="true">Игра</button><button id="graphics-tab" aria-pressed="false">Видео</button></div><div id="game-settings">
       <button id="audio" aria-pressed="false">Звук: выкл.</button>
       <label><input type="checkbox" id="low-quality"> Уменьшить качество</label>
       </div><div id="graphics-settings" hidden></div>

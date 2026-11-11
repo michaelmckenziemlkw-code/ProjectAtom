@@ -127,10 +127,13 @@ test('five FPS preserves time, graphics controls respond and F8 resets', async (
   await page.goto('/?seed=12');
   await page.locator('#enter').click();
   await page.locator('#settings-button').click();
-  await page.locator('#graphics-tab').click();
+  await page.getByRole('button', { name: 'Видео', exact: true }).click();
+  await expect(page.locator('#graphics-settings')).not.toContainText(
+    /пароди|понарошку|AAA EDITION|красивого названия/i,
+  );
   await expect(page.locator('#graphics-settings input[type=checkbox]')).toHaveCount(0);
-  await page.getByRole('combobox', { name: 'HairWorks', exact: true }).selectOption('true');
-  await page.getByRole('combobox', { name: 'Ray tracing', exact: true }).selectOption('true');
+  await page.getByRole('combobox', { name: 'NVIDIA HairWorks', exact: true }).selectOption('true');
+  await page.getByRole('combobox', { name: 'Ray Tracing', exact: true }).selectOption('true');
   await expect(page.locator('#graphics-cap')).toHaveText('Предел: 5 FPS');
   await page.waitForTimeout(500);
   const sample = () =>
