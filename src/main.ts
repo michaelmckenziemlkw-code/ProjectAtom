@@ -32,6 +32,38 @@ let entered = false,
   pitch = 1.12,
   noticeUntil = 0;
 let intro = false;
+let menuMusicAvailable = false;
+function syncSoundButtons() {
+  view.element('audio').textContent = audio.enabled ? 'Звук: вкл.' : 'Звук: выкл.';
+  view.element('audio').setAttribute('aria-pressed', String(audio.enabled));
+  if (menuMusicAvailable) {
+    view.element('menu-music').textContent = audio.enabled ? 'Выключить музыку' : 'Включить музыку';
+    view.element('menu-music').setAttribute('aria-pressed', String(audio.enabled));
+  }
+}
+function menuMusicFailed() {
+  menuMusicAvailable = false;
+  view.element<HTMLButtonElement>('menu-music').disabled = true;
+  view.element('menu-music').textContent = 'Музыка недоступна';
+}
+function playMenuMusic() {
+  if (!entered && !disposed && view.mode === 'entry' && audio.enabled && menuMusicAvailable)
+    void audio.startMenu().catch(menuMusicFailed);
+}
+view.element('menu-music').addEventListener('click', async () => {
+  if (entered || disposed || !menuMusicAvailable) return;
+  view.element<HTMLButtonElement>('menu-music').disabled = true;
+  try {
+    await audio.toggle();
+    syncSoundButtons();
+    if (audio.enabled) playMenuMusic();
+    else audio.stopMenu();
+  } catch {
+    menuMusicFailed();
+  } finally {
+    view.element<HTMLButtonElement>('menu-music').disabled = !menuMusicAvailable;
+  }
+});
 function advance() {
   const seconds = clock.read(performance.now());
   const controlled = entered && !intro; // Held input is drained before every menu/focus transition.
@@ -69,6 +101,7 @@ function enter(withIntro: boolean) {
   clock.setActive(true, now);
   entered = true;
   intro = withIntro;
+  audio.stopMenu();
   audio.stopIntro();
   yaw = 0;
   pitch = 1.12;
@@ -80,8 +113,7 @@ function enter(withIntro: boolean) {
     const enable = audio.enabled ? Promise.resolve(true) : audio.toggle();
     void enable
       .then(() => {
-        view.element('audio').textContent = audio.enabled ? 'Звук: вкл.' : 'Звук: выкл.';
-        view.element('audio').setAttribute('aria-pressed', String(audio.enabled));
+        syncSoundButtons();
         if (intro) return audio.startIntro(clock.read(performance.now()));
       })
       .catch(() => {
@@ -110,6 +142,8 @@ app.addEventListener('request-quit', () => {
   clock.reset(performance.now());
   walk.reset();
   view.entry();
+  syncSoundButtons();
+  playMenuMusic();
 });
 app.addEventListener('ui-mode-change', () => {
   if (view.mode !== 'playing') release();
@@ -187,15 +221,15 @@ view.element<HTMLInputElement>('volume').addEventListener('input', (event) => {
 });
 view.element('audio').addEventListener('click', async () => {
   try {
-    const enabled = await audio.toggle();
-    view.element('audio').textContent = enabled ? 'Звук: вкл.' : 'Звук: выкл.';
-    view.element('audio').setAttribute('aria-pressed', String(enabled));
+    await audio.toggle();
+    syncSoundButtons();
   } catch {
     view.element('audio').textContent = 'Звук недоступен';
   }
 });
 view.canvas.addEventListener('render-failure', (event) => {
   study?.engine.stopRenderLoop();
+  audio.stopMenu();
   finishIntro();
   release();
   audio.silence();
@@ -231,7 +265,16 @@ async function start() {
     )
       study.condition(Number(conditionValue));
     study.present(session.current, walk, 0, yaw, pitch);
-    await Promise.all([study.scene.whenReadyAsync(), audio.loadIntro()]);
+    await Promise.all([
+      study.scene.whenReadyAsync(),
+      audio.loadIntro(),
+      audio
+        .loadMenu()
+        .then(() => {
+          menuMusicAvailable = true;
+        })
+        .catch(menuMusicFailed),
+    ]);
     if (disposed) {
       study?.dispose();
       study = null;
@@ -239,13 +282,14 @@ async function start() {
     }
     view.canvas.dataset.ready = 'true';
     view.ready();
+    view.element<HTMLButtonElement>('menu-music').disabled = !menuMusicAvailable;
     study.engine.runRenderLoop(() => {
       if (!study) return;
       const now = performance.now(),
         seconds = advance(),
         motion = beetleMotion(seconds, walk.beddingAt);
       if (intro && seconds >= INTRO_DURATION) finishIntro();
-      if (intro) audio.presentIntro(document.hidden);
+      if (!entered || intro) audio.presentSoundtrack(document.hidden);
       else if (motion.stage === 'waiting')
         audio.present(session.current.gesture, seconds, !entered || document.hidden);
       else audio.silence();
@@ -261,6 +305,7 @@ async function start() {
       }
       Object.assign(view.canvas.dataset, {
         cinematic: String(intro),
+        menuMusicPlaying: String(audio.menuPlaying),
         animationTime: String(seconds),
         renderCount: String(meter.count),
         baselineFps: baseline.value === null ? '' : String(baseline.value),

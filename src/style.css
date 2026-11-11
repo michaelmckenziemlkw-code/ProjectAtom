@@ -1207,3 +1207,16 @@ kbd {
 .during-cinematic > * {
   visibility: hidden;
 }
+
+#menu-music {
+  display: block;
+  margin: 0 0 16px;
+  padding: 8px 0;
+  background: transparent;
+  color: #c9d3df;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #536074;
+}
+#menu-music[aria-pressed='true'] {
+  color: #e8c597;
+}

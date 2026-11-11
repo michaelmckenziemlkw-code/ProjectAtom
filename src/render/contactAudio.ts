@@ -11,6 +11,51 @@ export class ContactAudio {
   private introBytes: ArrayBuffer | null = null;
   private introBuffer: AudioBuffer | null = null;
   private introGeneration = 0;
+  private menuBytes: ArrayBuffer | null = null;
+  private menuBuffer: AudioBuffer | null = null;
+  private menuVoice: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
+  private menuGeneration = 0;
+
+  get menuPlaying() {
+    return this.menuVoice !== null;
+  }
+  async loadMenu(): Promise<void> {
+    const response = await fetch(`${import.meta.env.BASE_URL}music/AtomBackground.ogg`);
+    if (!response.ok) throw new Error('Не удалось загрузить AtomBackground');
+    this.menuBytes = await response.arrayBuffer();
+  }
+  async startMenu(): Promise<void> {
+    this.stopMenu();
+    const generation = this.menuGeneration,
+      ctx = this.context;
+    if (!ctx || !this.master || !this.menuBytes || !this.enabled) return;
+    this.menuBuffer ??= await ctx.decodeAudioData(this.menuBytes.slice(0));
+    if (generation !== this.menuGeneration || !this.enabled || ctx.state === 'closed') return;
+    const source = ctx.createBufferSource(),
+      gain = ctx.createGain();
+    source.buffer = this.menuBuffer;
+    source.loop = true;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(2.2, ctx.currentTime + 1);
+    source.connect(gain).connect(this.master);
+    this.menuVoice = { source, gain };
+    source.onended = () => {
+      if (this.menuVoice?.source === source) this.menuVoice = null;
+      source.disconnect();
+      gain.disconnect();
+    };
+    source.start();
+  }
+  stopMenu(): void {
+    this.menuGeneration++;
+    const voice = this.menuVoice;
+    this.menuVoice = null;
+    if (!voice || !this.context) return;
+    voice.gain.gain.cancelScheduledValues(this.context.currentTime);
+    voice.gain.gain.setValueAtTime(voice.gain.gain.value, this.context.currentTime);
+    voice.gain.gain.linearRampToValueAtTime(0, this.context.currentTime + 0.08);
+    voice.source.stop(this.context.currentTime + 0.08);
+  }
 
   async loadIntro(): Promise<void> {
     const response = await fetch(`${import.meta.env.BASE_URL}music/WormTheme.ogg`);
@@ -31,6 +76,7 @@ export class ContactAudio {
   }
 
   async toggle(): Promise<boolean> {
+    const requestedEnabled = !this.enabled;
     if (!this.context) {
       this.context = new AudioContext();
       this.master = this.context.createGain();
@@ -52,13 +98,14 @@ export class ContactAudio {
       this.scrape = { source, gain };
     }
     await this.context.resume();
-    this.enabled = !this.enabled;
+    this.enabled = requestedEnabled;
     if (!this.enabled) this.silence();
     else this.master!.gain.setTargetAtTime(this.volume, this.context.currentTime, 0.02);
     return this.enabled;
   }
 
   async startIntro(elapsed = 0): Promise<void> {
+    this.stopMenu();
     this.stopIntro();
     const generation = this.introGeneration;
     const ctx = this.context;
@@ -119,7 +166,7 @@ export class ContactAudio {
       thud.stop(at + 0.3);
     }
   }
-  presentIntro(hidden: boolean): void {
+  presentSoundtrack(hidden: boolean): void {
     this.scrape?.gain.gain.setTargetAtTime(0, this.context!.currentTime, 0.02);
     this.master?.gain.setTargetAtTime(
       this.enabled && !hidden ? this.volume : 0,
@@ -169,6 +216,7 @@ export class ContactAudio {
     this.lastEvent = 0;
   }
   dispose(): void {
+    this.stopMenu();
     this.stopIntro();
     this.scrape?.source.stop();
     void this.context?.close();

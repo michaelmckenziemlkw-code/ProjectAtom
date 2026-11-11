@@ -1,0 +1,13 @@
+{
+  "format": 0,
+  "tracks": 1,
+  "ppq": 1920,
+  "midiDuration": 52.84635416666668,
+  "notes": 165,
+  "pedalEvents": 257,
+  "audioDuration": 55.84635416666668,
+  "peak": 0.085296630859375,
+  "instrument": "FluidR3 GM Yamaha Grand Piano",
+  "decayTimecents": 900,
+  "sourceSha256": "fde60ab0fe37a2693ff2fd1449050f20024fdf98e316867d639aef738e0e3709"
+}
