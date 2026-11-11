@@ -1,3 +1,5 @@
+import { sampleIntro } from '../core/cinematic.ts';
+import { createIntroStage } from './introStage.ts';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
@@ -59,6 +61,8 @@ export async function createStudyScene(
     throw error;
   }
   const worm = createProceduralWorm(scene);
+  const introStage = createIntroStage(scene);
+  introStage.present(null);
   const leaf = ellipsoid(
     scene,
     'bedding-leaf',
@@ -108,6 +112,34 @@ export async function createStudyScene(
         low ? Math.max(1.5, devicePixelRatio) : Math.max(1, devicePixelRatio / 1.5),
       );
     },
+    presentIntro(seconds: number) {
+      const sample = sampleIntro(seconds);
+      actor.root.setEnabled(false);
+      leaf.setEnabled(false);
+      sun.diffuse.set(
+        0.64 + 0.36 * sample.handoff,
+        0.73 + 0.14 * sample.handoff,
+        0.87 - 0.24 * sample.handoff,
+      );
+      scene.clearColor.set(0.13, 0.17, 0.22, 1);
+      scene.fogColor.set(0.18, 0.23, 0.29);
+      sun.intensity = 0.75 + 0.3 * sample.handoff;
+      fill.intensity = 0.8;
+      environment.present('tap', seconds, false);
+      worm.presentIntro(sample);
+      introStage.present(seconds);
+      camera.fov = 0.75 + 0.25 * sample.handoff;
+      camera.setTarget(Vector3.FromArray(sample.target));
+      camera.setPosition(Vector3.FromArray(sample.camera));
+      scene.render();
+      Object.assign(canvas.dataset, {
+        introShot: String(sample.shot),
+        introCough: String(sample.cough),
+        renderedCameraX: String(camera.position.x),
+        renderedCameraY: String(camera.position.y),
+        renderedCameraZ: String(camera.position.z),
+      });
+    },
     present(
       observation: Observation,
       walk: WalkSession,
@@ -115,6 +147,14 @@ export async function createStudyScene(
       yaw: number,
       pitch: number,
     ) {
+      actor.root.setEnabled(true);
+      scene.clearColor.set(0.14, 0.18, 0.15, 1);
+      scene.fogColor.set(0.23, 0.28, 0.22);
+      sun.diffuse.set(1, 0.87, 0.63);
+      sun.intensity = 1.05;
+      fill.intensity = 0.65;
+      camera.fov = 1;
+      introStage.present(null);
       const motion = beetleMotion(seconds, walk.beddingAt);
       actor.present({ ...observation, seconds, walking: motion.walking ? seconds : undefined });
       actor.root.position.set(motion.x, motion.y, motion.z);

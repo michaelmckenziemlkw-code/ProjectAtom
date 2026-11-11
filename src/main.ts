@@ -1,3 +1,4 @@
+import { INTRO_DURATION, sampleIntro } from './core/cinematic.ts';
 import './style.css';
 import { ActiveClock, FramePacer, FrameMeter, UncappedFpsSampler } from './core/timing.ts';
 import { effectiveFrameCap } from './core/graphics.ts';
@@ -30,9 +31,10 @@ let entered = false,
   yaw = 0,
   pitch = 1.12,
   noticeUntil = 0;
+let intro = false;
 function advance() {
   const seconds = clock.read(performance.now());
-  const controlled = entered; // Held input is drained before every menu/focus transition.
+  const controlled = entered && !intro; // Held input is drained before every menu/focus transition.
   walk.advance(seconds, {
     forward: controlled ? Number(held.has('KeyW')) - Number(held.has('KeyS')) : 0,
     right: controlled ? Number(held.has('KeyD')) - Number(held.has('KeyA')) : 0,
@@ -59,24 +61,49 @@ async function resume() {
       );
   }
 }
-view.element('enter').addEventListener('click', () => {
+function enter(withIntro: boolean) {
   if (!study) return;
   const now = performance.now();
   walk.reset();
   clock.reset(now);
   clock.setActive(true, now);
   entered = true;
+  intro = withIntro;
+  audio.stopIntro();
   yaw = 0;
   pitch = 1.12;
   held.clear();
   view.resetTrial();
   baseline.reset();
   void resume();
-});
+  if (intro) {
+    const enable = audio.enabled ? Promise.resolve(true) : audio.toggle();
+    void enable
+      .then(() => {
+        view.element('audio').textContent = audio.enabled ? 'Звук: вкл.' : 'Звук: выкл.';
+        view.element('audio').setAttribute('aria-pressed', String(audio.enabled));
+        if (intro) audio.startIntro(clock.read(performance.now()));
+      })
+      .catch(() => {
+        view.element('audio').textContent = 'Звук недоступен';
+      });
+  }
+}
+view.element('enter').addEventListener('click', () => enter(false));
+view.element('enter-cinematic').addEventListener('click', () => enter(true));
+function finishIntro() {
+  intro = false;
+  audio.stopIntro();
+  audio.silence();
+  held.clear();
+  baseline.reset();
+}
+
 app.addEventListener('request-resume', () => void resume());
 app.addEventListener('request-quit', () => {
   advance();
   entered = false;
+  finishIntro();
   release();
   audio.silence();
   clock.setActive(false, performance.now());
@@ -92,13 +119,15 @@ document.addEventListener('pointerlockchange', () => {
     view.menu();
 });
 document.addEventListener('keydown', (event) => {
-  if (
-    event.defaultPrevented ||
-    !entered ||
-    view.mode !== 'playing' ||
-    document.pointerLockElement !== view.canvas
-  )
+  if (event.defaultPrevented || !entered || view.mode !== 'playing') return;
+  if (intro) {
+    if (event.code === 'Space' && !event.repeat) {
+      event.preventDefault();
+      finishIntro();
+    }
     return;
+  }
+  if (document.pointerLockElement !== view.canvas) return;
   if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {
     event.preventDefault();
     advance();
@@ -120,7 +149,7 @@ document.addEventListener('keyup', (event) => {
   }
 });
 document.addEventListener('mousemove', (event) => {
-  if (entered && view.mode === 'playing' && document.pointerLockElement === view.canvas) {
+  if (entered && !intro && view.mode === 'playing' && document.pointerLockElement === view.canvas) {
     advance();
     yaw += event.movementX * 0.0025;
     pitch = Math.max(0.45, Math.min(1.4, pitch - event.movementY * 0.002));
@@ -167,6 +196,7 @@ view.element('audio').addEventListener('click', async () => {
 });
 view.canvas.addEventListener('render-failure', (event) => {
   study?.engine.stopRenderLoop();
+  finishIntro();
   release();
   audio.silence();
   view.fail((event as CustomEvent<string>).detail);
@@ -206,7 +236,9 @@ async function start() {
       const now = performance.now(),
         seconds = advance(),
         motion = beetleMotion(seconds, walk.beddingAt);
-      if (motion.stage === 'waiting')
+      if (intro && seconds >= INTRO_DURATION) finishIntro();
+      if (intro) audio.presentIntro(document.hidden);
+      else if (motion.stage === 'waiting')
         audio.present(session.current.gesture, seconds, !entered || document.hidden);
       else audio.silence();
       const inactive = !entered || document.hidden;
@@ -214,11 +246,13 @@ async function start() {
       const calibrating = baseline.value === null && !inactive;
       const cap = calibrating ? 0 : effectiveFrameCap(graphics.settings, baseline.value);
       if (pacer.shouldRender(now, cap)) {
-        study.present(session.current, walk, seconds, yaw, pitch);
+        if (intro) study.presentIntro(seconds);
+        else study.present(session.current, walk, seconds, yaw, pitch);
         meter.record(now);
         if (calibrating) baseline.sample(now);
       }
       Object.assign(view.canvas.dataset, {
+        cinematic: String(intro),
         animationTime: String(seconds),
         renderCount: String(meter.count),
         baselineFps: baseline.value === null ? '' : String(baseline.value),
@@ -229,6 +263,9 @@ async function start() {
         beetleStage: motion.stage,
         blocked: String(motion.blocked),
       });
+      view.element('cinematic-hud').hidden = !intro || view.mode !== 'playing';
+      view.element('study').classList.toggle('during-cinematic', intro);
+      view.element('cinematic-fade').style.opacity = String(sampleIntro(seconds).fade);
       const fps = meter.fps(now);
       view.element('fps').textContent = `${fps} FPS`;
       graphics.updateMetrics(!entered, fps, baseline.value);

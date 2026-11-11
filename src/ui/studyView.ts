@@ -12,13 +12,14 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
         <header class="graphics-heading"><div><span class="eyebrow">ProjectAtom / Настройки</span><h2>Звук</h2></div><span class="graphics-heading-note">Звуковое окружение</span></header>
         <div class="graphics-layout"><div>
           <h3 class="graphics-section">Громкость</h3>
-          <div class="audio-settings-row"><span>Звуковые эффекты</span><button id="audio" aria-pressed="false">Звук: выкл.</button></div>
+          <div class="audio-settings-row"><span>Звук</span><button id="audio" aria-pressed="false">Звук: выкл.</button></div>
           <label class="audio-settings-row" for="volume"><span>Общая громкость</span><span class="volume-control"><input id="volume" type="range" min="0" max="100" step="1" value="70"><output id="volume-value" for="volume">70%</output></span></label>
-        </div><aside class="graphics-aside"><div class="graphics-context"><span class="eyebrow">Описание параметра</span><h3>Звуковые эффекты</h3><p>Громкость звуков окружения и взаимодействий. Нулевое значение отключает звучание.</p></div></aside></div>
+        </div><aside class="graphics-aside"><div class="graphics-context"><span class="eyebrow">Описание параметра</span><h3>Звук</h3><p>Громкость музыки, звуков окружения и взаимодействий. Нулевое значение отключает звучание.</p></div></aside></div>
       </div><div id="graphics-settings" role="tabpanel" aria-labelledby="graphics-tab" hidden></div>
     </section>
-    <div id="loading" class="entry"><div class="entry-card"><span class="eyebrow">ProjectAtom · технопроба</span><h1>По ту сторону<br>маленького мира.</h1><p>WASD — движение. Мышь — обзор. Q — меню.<br>Для начала потребуется захват указателя мыши.</p><button id="enter" disabled>Подготовка сцены…</button><p class="muted">Технодемка управления червём. Полная голосовая эстафета остаётся в предыдущем макете.</p></div></div>
+    <div id="loading" class="entry"><div class="entry-card"><span class="eyebrow">ProjectAtom · технопроба</span><h1>По ту сторону<br>маленького мира.</h1><p>WASD — движение. Мышь — обзор. Q — меню.<br>Для начала потребуется захват указателя мыши.</p><button id="enter-cinematic" class="primary" disabled>Пролог червя · со звуком</button><button id="enter" disabled>Подготовка сцены…</button><p class="muted">Технодемка управления червём. Полная голосовая эстафета остаётся в предыдущем макете.</p></div></div>
     <section id="pause-menu" class="pause-menu panel" hidden role="dialog" aria-modal="true" aria-label="Меню игры" tabindex="-1"><span class="eyebrow">ProjectAtom</span><h1>Меню</h1><nav class="pause-actions" aria-label="Действия меню"><button id="resume">Продолжить игру</button><button id="open-settings">Настройки</button><button id="quit">Выйти из игры</button></nav><p class="muted">Время игры продолжается</p><p id="control-error" role="status"></p><details id="hints"><summary>Подсказки · <span id="hint-budget">10</span> очков</summary><div id="hint-text"></div><button id="hint-next">Открыть следующий уровень · 1 очко</button></details><details id="technical"><summary>Техническая проверка</summary><div class="eyebrow">Наблюдения</div><nav id="observations" aria-label="Выбрать наблюдение">${session.observations.map((_, i) => `<button data-observation="${i}" aria-label="Наблюдение ${i + 1}" aria-pressed="${i === 0}">0${i + 1}</button>`).join('')}</nav><details id="self-check"><summary>Проверить себя · технопроба</summary><form id="answer-form"><fieldset><legend class="sr-only">Описание движения</legend>${gestures.map((gesture) => `<label class="answer"><input type="radio" name="answer" value="${gesture}" required><span>${gestureLabels[gesture]}</span></label>`).join('')}</fieldset><button class="primary" type="submit">Проверить наблюдение</button></form><p id="feedback" role="status" aria-live="polite"></p><p id="progress" class="muted"></p></details></details></section>
+    <div id="cinematic-hud" hidden><div class="cinematic-bar top"></div><div class="cinematic-bar bottom"><span>ПРОБЕЛ — ПРОПУСТИТЬ · Q — МЕНЮ</span></div><div id="cinematic-fade"></div></div>
     <main id="study" class="play-hud" hidden><p id="fps"></p><div class="crosshair" aria-hidden="true">·</div><p id="interaction"></p><p id="notice" role="status"></p><p class="play-keys">WASD — движение · мышь — обзор · Q — меню</p></main>
     <section id="failure" class="failure panel" hidden role="alert"><h1>Не удалось показать 3D-сцену</h1><p id="failure-message"></p><p>Проверь аппаратное ускорение браузера или попробуй другой актуальный браузер.</p><button id="reload">Повторить</button></section>
   `;
@@ -77,6 +78,7 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
     mode = next;
     element('loading').hidden = next !== 'entry';
     element('study').hidden = next !== 'playing';
+    if (next !== 'playing') element('cinematic-hud').hidden = true;
     element('pause-menu').hidden = next !== 'menu';
     element('settings').hidden = next !== 'settings';
     element('failure').hidden = next !== 'failure';
@@ -177,6 +179,7 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
       return answered;
     },
     ready() {
+      element<HTMLButtonElement>('enter-cinematic').disabled = false;
       element<HTMLButtonElement>('enter').disabled = false;
       element('enter').textContent = 'Начать технодемку';
     },

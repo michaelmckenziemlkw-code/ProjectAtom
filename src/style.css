@@ -1166,3 +1166,44 @@ kbd {
 .entry {
   background: linear-gradient(90deg, #0d1016ec, #0d101650);
 }
+
+#enter-cinematic {
+  display: block;
+  margin-bottom: 12px;
+}
+#cinematic-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.cinematic-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 10vh;
+  background: #07090c;
+}
+.cinematic-bar.top {
+  top: 0;
+}
+.cinematic-bar.bottom {
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 4vw;
+}
+.cinematic-bar span {
+  color: #b6bcc5;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+#cinematic-fade {
+  position: absolute;
+  inset: 0;
+  background: #07090c;
+}
+.during-cinematic > * {
+  visibility: hidden;
+}
