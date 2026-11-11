@@ -1,7 +1,8 @@
 import { mix, smooth } from './birds.ts';
 import type { Point } from './birds.ts';
 import type { sampleIntro } from './cinematic.ts';
-export const WORM_RADIUS = 0.19;
+export const WORM_RADIUS = 0.083;
+export const WORM_IDLE_Y = 0.13;
 
 /** Local articulation independent of the body's global tumble and the render rate. */
 export function introSegment(sample: ReturnType<typeof sampleIntro>, i: number): Point {
@@ -23,12 +24,12 @@ export function introSegment(sample: ReturnType<typeof sampleIntro>, i: number):
   }
   const resting: Point = [
     Math.sin(i * 0.42) * 0.13,
-    (sample.phase === 'aftermath' ? 0.12 : 0.16) +
+    (sample.phase === 'aftermath' ? 0.125 : 0.14) +
       Math.sin(t * 1.8 - i * 0.2) * 0.007 +
       sample.cough * Math.exp(-i * 0.35) * 0.08,
     -i * 0.14,
   ];
-  const idle: Point = [0, 0.22 + Math.sin(t * 1.5) * 0.005, -i * 0.14];
+  const idle: Point = [0, WORM_IDLE_Y + Math.sin(t * 1.5) * 0.005, -i * 0.14];
   // Head recovers first, tail follows, all reach the exact gameplay idle pose before handoff.
   const recovery = smooth((sample.rise - tail * 0.12) / 0.88);
   return recovery >= 1 ? idle : mix(resting, idle, recovery);

@@ -30,11 +30,11 @@ export async function createStudyScene(
     powerPreference: 'high-performance',
   });
   const scene = new Scene(engine);
-  scene.clearColor = new Color4(0.16, 0.19, 0.2, 1);
-  scene.ambientColor = new Color3(0.16, 0.18, 0.13);
+  scene.clearColor = new Color4(0.18, 0.17, 0.2, 1);
+  scene.ambientColor = new Color3(0.19, 0.16, 0.19);
   scene.fogMode = Scene.FOGMODE_EXP2;
   scene.fogDensity = 0.045;
-  scene.fogColor = new Color3(0.23, 0.27, 0.28);
+  scene.fogColor = new Color3(0.29, 0.25, 0.28);
   const camera = new ArcRotateCamera(
     'worm-camera',
     -Math.PI / 2,
@@ -47,12 +47,12 @@ export async function createStudyScene(
   camera.minZ = 0.08; // Controls are supplied by Pointer Lock, never by drag/orbit inputs.
   const fill = new HemisphericLight('sky', new Vector3(-0.5, 1, -0.4), scene);
   fill.intensity = 0.75;
-  fill.diffuse = new Color3(0.8, 0.85, 0.9);
+  fill.diffuse = new Color3(0.66, 0.72, 0.86);
   fill.groundColor = new Color3(0.26, 0.22, 0.18);
   const sun = new DirectionalLight('late-sun', new Vector3(-0.65, -1, 0.35), scene);
   sun.position.set(7, 10, -5);
   sun.intensity = 1.05;
-  sun.diffuse = new Color3(0.86, 0.88, 0.92);
+  sun.diffuse = new Color3(1, 0.78, 0.61);
   const environment = createEnvironment(scene);
   let actor;
   try {
@@ -127,22 +127,9 @@ export async function createStudyScene(
       eagle.present(sample.eaglePose, seconds, sample.eagleVisible);
       scene.fogDensity = 0.006 + 0.039 * sample.handoff;
       leaf.setEnabled(false);
-      sun.diffuse.set(
-        0.64 + 0.22 * sample.handoff,
-        0.73 + 0.15 * sample.handoff,
-        0.87 + 0.05 * sample.handoff,
-      );
-      scene.clearColor.set(
-        0.13 + 0.03 * sample.handoff,
-        0.17 + 0.02 * sample.handoff,
-        0.22 - 0.02 * sample.handoff,
-        1,
-      );
-      scene.fogColor.set(
-        0.18 + 0.05 * sample.handoff,
-        0.23 + 0.04 * sample.handoff,
-        0.29 - 0.01 * sample.handoff,
-      );
+      sun.diffuse.set(1, 0.69 + 0.09 * sample.handoff, 0.5 + 0.11 * sample.handoff);
+      scene.clearColor.set(0.2 - 0.02 * sample.handoff, 0.17, 0.24 - 0.04 * sample.handoff, 1);
+      scene.fogColor.set(0.31 - 0.02 * sample.handoff, 0.25, 0.31 - 0.03 * sample.handoff);
       sun.intensity = 0.75 + 0.3 * sample.handoff;
       fill.intensity = 0.8 - 0.05 * sample.handoff;
       environment.present('tap', seconds, false);
@@ -155,7 +142,12 @@ export async function createStudyScene(
       const skinColor = scene.getMaterialByName(
         'worm-skin',
       ) as import('@babylonjs/core/Materials/standardMaterial').StandardMaterial;
-      canvas.dataset.wormSkin = skinColor.diffuseColor.toHexString();
+      canvas.dataset.wormSkin = skinColor.metadata.baseColor;
+      canvas.dataset.wormCondition = String(skinColor.metadata.condition);
+      canvas.dataset.wormSurfaceMinY = String(worm.minimumSurfaceY);
+      canvas.dataset.wormSurfaceVertices = String(
+        scene.getMeshByName('worm-body-surface')!.getTotalVertices(),
+      );
       canvas.dataset.eyeAnchor = String(
         Vector3.Distance(
           scene.getMeshByName('worm-eye')!.getAbsolutePosition(),
@@ -203,9 +195,9 @@ export async function createStudyScene(
       crow.hide();
       eagle.hide();
       scene.fogDensity = 0.045;
-      scene.clearColor.set(0.16, 0.19, 0.2, 1);
-      scene.fogColor.set(0.23, 0.27, 0.28);
-      sun.diffuse.set(0.86, 0.88, 0.92);
+      scene.clearColor.set(0.18, 0.17, 0.2, 1);
+      scene.fogColor.set(0.29, 0.25, 0.28);
+      sun.diffuse.set(1, 0.78, 0.61);
       sun.intensity = 1.05;
       fill.intensity = 0.75;
       camera.fov = 1;
@@ -254,7 +246,12 @@ export async function createStudyScene(
       const skinColor = scene.getMaterialByName(
         'worm-skin',
       ) as import('@babylonjs/core/Materials/standardMaterial').StandardMaterial;
-      canvas.dataset.wormSkin = skinColor.diffuseColor.toHexString();
+      canvas.dataset.wormSkin = skinColor.metadata.baseColor;
+      canvas.dataset.wormCondition = String(skinColor.metadata.condition);
+      canvas.dataset.wormSurfaceMinY = String(worm.minimumSurfaceY);
+      canvas.dataset.wormSurfaceVertices = String(
+        scene.getMeshByName('worm-body-surface')!.getTotalVertices(),
+      );
       canvas.dataset.eyeAnchor = String(
         Vector3.Distance(
           scene.getMeshByName('worm-eye')!.getAbsolutePosition(),

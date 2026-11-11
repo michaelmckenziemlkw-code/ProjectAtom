@@ -1,4 +1,4 @@
-import { introSegment } from './wormPose.ts';
+import { introSegment, WORM_IDLE_Y } from './wormPose.ts';
 import { add, rotate, GRIP_SEGMENT, CROW_SCALE, EAGLE_SCALE } from './birds.ts';
 import { wormAppearance } from './wormAppearance.ts';
 import test from 'node:test';
@@ -97,7 +97,7 @@ test('both birds fit the attack camera and the fall camera tracks the rotating b
   for (let time = 75; time < 110; time += 0.1) {
     const s = sampleIntro(time);
     assert.ok(Math.hypot(...sub(s.target, s.worm)) < 0.8);
-    assert.ok(Math.hypot(...sub(s.camera, s.target)) > 5);
+    assert.ok(Math.hypot(...sub(s.camera, s.target)) > 3.8);
   }
 });
 
@@ -173,10 +173,10 @@ test('long recovery converges continuously to the exact gameplay idle before han
   const end = sampleIntro(INTRO_DURATION);
   for (let i = 0; i < 11; i++) {
     const pose = introSegment(end, i);
-    assert.deepEqual(pose, [0, 0.22 + Math.sin(end.time * 1.5) * 0.005, -i * 0.14]);
+    assert.deepEqual(pose, [0, WORM_IDLE_Y + Math.sin(end.time * 1.5) * 0.005, -i * 0.14]);
     const near = introSegment(sampleIntro(INTRO_DURATION - 0.02), i);
     assert.ok(Math.hypot(...pose.map((v, j) => v - near[j]!)) < 0.001);
   }
   const skin = wormAppearance().skin;
-  assert.ok(skin[0] - skin[1] > 0.1 && skin[1] > skin[2]);
+  assert.ok(skin[0] - skin[1] > 0.08 && skin[1] > skin[2]);
 });

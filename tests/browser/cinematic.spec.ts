@@ -169,3 +169,55 @@ test('carried closeups keep the face in frame before the high-altitude accelerat
   expect(Number(await canvas.getAttribute('data-intro-fall-speed'))).toBeGreaterThan(speed * 1.5);
   await page.screenshot({ path: 'docs/images/worm-fast-fall.png' });
 });
+
+test('reference worm uses a textured surface and never crosses the ground around landing', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.clock.install();
+  await page.goto('/?seed=12');
+  await page.locator('#enter-cinematic').click({ timeout: 45000 });
+  const canvas = page.locator('#world');
+  expect(Number(await canvas.getAttribute('data-worm-surface-vertices'))).toBeGreaterThan(1500);
+  await expect(canvas).toHaveAttribute('data-cinematic', 'true');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 2000));
+  let previous = Number(await canvas.getAttribute('data-animation-time'));
+  for (const target of [109.7, 109.9, 109.94, 110.02, 110.12, 110.6, 111.2]) {
+    await page.clock.fastForward(Math.max(1, (target - previous) * 1000));
+    await page.clock.runFor(20);
+    const min = Number(await canvas.getAttribute('data-worm-surface-min-y'));
+    expect(min, `surface at ${target}s`).toBeGreaterThanOrEqual(0.0399);
+    previous = Number(await canvas.getAttribute('data-animation-time'));
+    if (target === 109.94) {
+      await expect(canvas).toHaveAttribute('data-intro-phase', 'fall');
+      await page.screenshot({ path: 'docs/images/worm-ground-contact.png' });
+    }
+  }
+  await page.screenshot({ path: 'docs/images/worm-ground-rest.png' });
+  expect(errors).toEqual([]);
+});
+
+test('healthy, weakened and dying reference palettes remain selectable without changing the performance', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const skins: string[] = [];
+  for (const [condition, label] of [
+    [1, 'healthy'],
+    [0.55, 'weakened'],
+    [0, 'dying'],
+  ] as const) {
+    await page.goto(`/?seed=12&condition=${condition}`);
+    await page.locator('#enter-cinematic').click({ timeout: 45000 });
+    const canvas = page.locator('#world');
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 2000));
+    const time = Number(await canvas.getAttribute('data-animation-time'));
+    await page.clock.fastForward((104 - time) * 1000);
+    await expect(canvas).toHaveAttribute('data-worm-condition', String(condition));
+    skins.push((await canvas.getAttribute('data-worm-skin'))!);
+    await page.screenshot({ path: `docs/images/worm-${label}.png` });
+    await page.clock.resume();
+  }
+  expect(new Set(skins).size).toBe(3);
+});

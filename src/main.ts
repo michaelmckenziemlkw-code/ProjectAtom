@@ -222,6 +222,14 @@ async function start() {
       return;
     }
     study.quality(false);
+    // Art review only; this is not the future health mechanic.
+    const conditionValue = new URLSearchParams(location.search).get('condition');
+    if (
+      conditionValue !== null &&
+      conditionValue.trim() !== '' &&
+      Number.isFinite(Number(conditionValue))
+    )
+      study.condition(Number(conditionValue));
     study.present(session.current, walk, 0, yaw, pitch);
     await Promise.all([study.scene.whenReadyAsync(), audio.loadIntro()]);
     if (disposed) {

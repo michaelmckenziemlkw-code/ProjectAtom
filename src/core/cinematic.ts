@@ -193,7 +193,8 @@ export function sampleIntro(seconds: number) {
     camera = add(target, mix([22, 10, 35], [14, 6, 24], smooth((time - 67) / 8)));
   } else if (shot === 7) {
     target = add(worm, rotate([0, 0.18, -0.7], rotation));
-    camera = add(target, [2.8, 1.1, 4.1]);
+    // Approach above the centre of the passage so rocks/banks cannot cover the impact.
+    camera = add(target, mix([2.8, 1.1, 4.1], [0.45, 2.2, 3.3], smooth((time - 107) / 3)));
   } else {
     camera = mix([1.2, 0.8, -3.8], [0, 2.38, -8.98], smooth((time - 124) / (INTRO_DURATION - 124)));
     target = mix([0, 0.16, -5.6], [0, 0.55, -5.2], smooth((time - 124) / (INTRO_DURATION - 124)));
