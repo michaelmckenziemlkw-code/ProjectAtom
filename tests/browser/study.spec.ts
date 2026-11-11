@@ -9,7 +9,7 @@ async function enter(page: Page) {
     .toBe('world');
 }
 async function menu(page: Page) {
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('q');
   await expect(page.locator('#pause-menu')).toBeVisible();
 }
 async function settings(page: Page) {
@@ -68,7 +68,7 @@ test('real WebGL, locked mouse, worm movement, blocked passage and bedding depar
   expect(outbound).toEqual([]);
 });
 
-test('Escape menu does not pause time, clears walking, resumes by Escape/button and quits to entry', async ({
+test('Q menu does not pause time, clears walking, resumes by Q/button and quits to entry', async ({
   page,
 }) => {
   await enter(page);
@@ -81,7 +81,7 @@ test('Escape menu does not pause time, clears walking, resumes by Escape/button 
   expect(await number(page, 'animation-time')).toBeGreaterThan(time + 1);
   expect(await number(page, 'player-z')).toBe(z);
   await page.screenshot({ path: 'docs/images/pause-menu.png' });
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('q');
   await expect(page.locator('#pause-menu')).toBeHidden();
   await expect.poll(() => page.evaluate(() => document.pointerLockElement?.id)).toBe('world');
   await menu(page);
@@ -89,7 +89,7 @@ test('Escape menu does not pause time, clears walking, resumes by Escape/button 
   await expect(page.locator('#pause-menu')).toBeHidden();
   await menu(page);
   await page.locator('#open-settings').click();
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('q');
   await expect(page.locator('#pause-menu')).toBeVisible();
   await expect(page.locator('#settings')).toBeHidden();
   await page.locator('#quit').click();
@@ -257,7 +257,7 @@ test('narrow viewport keeps menus and Apply reachable without horizontal overflo
   await page.locator('#graphics-apply').scrollIntoViewIfNeeded();
   await expect(page.locator('#graphics-apply')).toBeVisible();
   await page.locator('#graphics-apply').click();
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('q');
   await expect(page.locator('#pause-menu')).toBeVisible();
 });
 
@@ -285,4 +285,60 @@ test('denied Pointer Lock keeps a usable retry menu', async ({ page }) => {
   await expect(page.locator('#control-error')).toContainText('Не удалось захватить мышь');
   await page.locator('#quit').click();
   await expect(page.locator('#loading')).toBeVisible();
+});
+
+test('camera translates with the moving worm and preserves mouse orbit while W is held', async ({
+  page,
+}) => {
+  await enter(page);
+  const sample = () =>
+    page.locator('#world').evaluate((e) => {
+      const d = (e as HTMLElement).dataset;
+      return {
+        x: Number(d.renderedCameraX),
+        z: Number(d.renderedCameraZ),
+        tx: Number(d.cameraTargetX),
+        tz: Number(d.cameraTargetZ),
+        alpha: Number(d.orbitAlpha),
+        beta: Number(d.orbitBeta),
+        radius: Number(d.orbitRadius),
+        yaw: Number(d.renderedCameraYaw),
+      };
+    });
+  const a = await sample();
+  await page.keyboard.down('w');
+  await page.waitForTimeout(450);
+  await expect.poll(async () => (await sample()).tz).toBeGreaterThan(a.tz + 0.25);
+  const b = await sample();
+  expect(Math.abs(b.z - a.z - (b.tz - a.tz))).toBeLessThan(0.01);
+  expect(Math.abs(b.alpha + Math.PI / 2 + b.yaw)).toBeLessThan(1e-6);
+  await page.mouse.move(820, 470);
+  await expect.poll(async () => (await sample()).yaw).not.toBe(b.yaw);
+  const c = await sample();
+  expect(Math.abs(c.alpha + Math.PI / 2 + c.yaw)).toBeLessThan(1e-6);
+  expect(Math.abs(c.x - c.tx + Math.sin(c.yaw) * Math.sin(c.beta) * c.radius)).toBeLessThan(0.01);
+  expect(Math.abs(c.z - c.tz + Math.cos(c.yaw) * Math.sin(c.beta) * c.radius)).toBeLessThan(0.01);
+  await page.keyboard.up('w');
+  await page.screenshot({ path: 'docs/images/worm-turn.png' });
+});
+
+test('pointer unlock and Escape never re-grab the mouse; Q restores capture', async ({ page }) => {
+  await enter(page);
+  await page.evaluate(() => document.exitPointerLock());
+  await expect(page.locator('#pause-menu')).toBeVisible();
+  expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#pause-menu')).toBeVisible();
+  expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
+  await page.keyboard.press('q');
+  await expect.poll(() => page.evaluate(() => document.pointerLockElement?.id)).toBe('world');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#pause-menu')).toBeVisible();
+  await page.keyboard.press('q');
+  await expect.poll(() => page.evaluate(() => document.pointerLockElement?.id)).toBe('world');
+  await page.keyboard.down('q');
+  await page.keyboard.down('q');
+  await page.waitForTimeout(600);
+  await expect(page.locator('#pause-menu')).toBeVisible();
+  await page.keyboard.up('q');
 });

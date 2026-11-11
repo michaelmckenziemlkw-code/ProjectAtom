@@ -4,7 +4,7 @@ import { descriptions, gestureLabels, gestures } from '../core/observation.ts';
 
 export function mountStudyView(container: HTMLElement, session: ObservationSession) {
   container.innerHTML = `
-    <canvas id="world" tabindex="0" aria-label="Управление червём от третьего лица. WASD — движение, мышь — обзор, Escape — меню."></canvas>
+    <canvas id="world" tabindex="0" aria-label="Управление червём от третьего лица. WASD — движение, мышь — обзор, Q — меню."></canvas>
     <div id="settings-backdrop" hidden></div><section id="settings" class="settings panel graphics-open" hidden role="dialog" aria-modal="true" aria-label="Настройки" tabindex="-1">
       <h2>Настройки</h2><button id="settings-close" aria-label="Закрыть настройки">×</button>
       <div class="button-row" role="tablist" aria-label="Раздел настроек"><button id="game-tab" role="tab" aria-selected="true" aria-controls="game-settings">Звук</button><button id="graphics-tab" role="tab" aria-selected="false" aria-controls="graphics-settings" tabindex="-1">Видео</button></div>
@@ -17,9 +17,9 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
         </div><aside class="graphics-aside"><div class="graphics-context"><span class="eyebrow">Описание параметра</span><h3>Звуковые эффекты</h3><p>Громкость звуков окружения и взаимодействий. Нулевое значение отключает звучание.</p></div></aside></div>
       </div><div id="graphics-settings" role="tabpanel" aria-labelledby="graphics-tab" hidden></div>
     </section>
-    <div id="loading" class="entry"><div class="entry-card"><span class="eyebrow">ProjectAtom · технопроба</span><h1>По ту сторону<br>маленького мира.</h1><p>WASD — движение. Мышь — обзор. Escape — меню.<br>Для начала потребуется захват указателя мыши.</p><button id="enter" disabled>Подготовка сцены…</button><p class="muted">Технодемка управления червём. Полная голосовая эстафета остаётся в предыдущем макете.</p></div></div>
+    <div id="loading" class="entry"><div class="entry-card"><span class="eyebrow">ProjectAtom · технопроба</span><h1>По ту сторону<br>маленького мира.</h1><p>WASD — движение. Мышь — обзор. Q — меню.<br>Для начала потребуется захват указателя мыши.</p><button id="enter" disabled>Подготовка сцены…</button><p class="muted">Технодемка управления червём. Полная голосовая эстафета остаётся в предыдущем макете.</p></div></div>
     <section id="pause-menu" class="pause-menu panel" hidden role="dialog" aria-modal="true" aria-label="Меню игры" tabindex="-1"><span class="eyebrow">ProjectAtom</span><h1>Меню</h1><nav class="pause-actions" aria-label="Действия меню"><button id="resume">Продолжить игру</button><button id="open-settings">Настройки</button><button id="quit">Выйти из игры</button></nav><p class="muted">Время игры продолжается</p><p id="control-error" role="status"></p><details id="hints"><summary>Подсказки · <span id="hint-budget">10</span> очков</summary><div id="hint-text"></div><button id="hint-next">Открыть следующий уровень · 1 очко</button></details><details id="technical"><summary>Техническая проверка</summary><div class="eyebrow">Наблюдения</div><nav id="observations" aria-label="Выбрать наблюдение">${session.observations.map((_, i) => `<button data-observation="${i}" aria-label="Наблюдение ${i + 1}" aria-pressed="${i === 0}">0${i + 1}</button>`).join('')}</nav><details id="self-check"><summary>Проверить себя · технопроба</summary><form id="answer-form"><fieldset><legend class="sr-only">Описание движения</legend>${gestures.map((gesture) => `<label class="answer"><input type="radio" name="answer" value="${gesture}" required><span>${gestureLabels[gesture]}</span></label>`).join('')}</fieldset><button class="primary" type="submit">Проверить наблюдение</button></form><p id="feedback" role="status" aria-live="polite"></p><p id="progress" class="muted"></p></details></details></section>
-    <main id="study" class="play-hud" hidden><p id="fps"></p><div class="crosshair" aria-hidden="true">·</div><p id="interaction"></p><p id="notice" role="status"></p><p class="play-keys">WASD — движение · мышь — обзор · Esc — меню</p></main>
+    <main id="study" class="play-hud" hidden><p id="fps"></p><div class="crosshair" aria-hidden="true">·</div><p id="interaction"></p><p id="notice" role="status"></p><p class="play-keys">WASD — движение · мышь — обзор · Q — меню</p></main>
     <section id="failure" class="failure panel" hidden role="alert"><h1>Не удалось показать 3D-сцену</h1><p id="failure-message"></p><p>Проверь аппаратное ускорение браузера или попробуй другой актуальный браузер.</p><button id="reload">Повторить</button></section>
   `;
   const element = <T extends HTMLElement>(id: string) => container.querySelector<T>(`#${id}`)!;
@@ -95,10 +95,14 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
   );
   document.addEventListener('keydown', (event) => {
     if (mode === 'entry' || mode === 'failure') return;
-    if (event.key === 'Escape') {
+    if (event.code === 'KeyQ' && !event.repeat) {
       event.preventDefault();
       if (mode === 'menu') emit('request-resume');
       else show('menu');
+    }
+    if (event.key === 'Escape' && (mode === 'playing' || mode === 'settings')) {
+      // Browser escape/unlock is one-way; only Q or Continue requests capture again.
+      show('menu');
     }
     if (event.key === 'Tab' && (mode === 'menu' || mode === 'settings')) {
       const dialog = element(mode === 'menu' ? 'pause-menu' : 'settings');

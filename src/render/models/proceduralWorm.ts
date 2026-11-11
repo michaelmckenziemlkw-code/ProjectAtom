@@ -1,6 +1,7 @@
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
+import { WORM_SEGMENTS } from '../../core/wormBody.ts';
 import type { WalkSession } from '../../core/walk.ts';
 import { ellipsoid, material } from '../meshTools.ts';
 
@@ -10,7 +11,9 @@ export function createProceduralWorm(scene: Scene) {
   const band = material(scene, 'worm-band', '#97574f', 25);
   const black = material(scene, 'worm-eyes', '#151318', 65);
   const pearl = material(scene, 'worm-eye-highlight', '#f3ded2', 40);
-  const segments = Array.from({ length: 11 }, (_, i) => {
+  const head = new TransformNode('worm-head', scene);
+  head.parent = root;
+  const segments = Array.from({ length: WORM_SEGMENTS }, (_, i) => {
     const radius = 0.235 * (1 - i * 0.045);
     return ellipsoid(
       scene,
@@ -28,7 +31,7 @@ export function createProceduralWorm(scene: Scene) {
       new Vector3(side * 0.125, 0.31, 0.145),
       new Vector3(0.041, 0.043, 0.033),
       black,
-      root,
+      head,
     );
     ellipsoid(
       scene,
@@ -36,15 +39,20 @@ export function createProceduralWorm(scene: Scene) {
       new Vector3(side * 0.128, 0.328, 0.171),
       new Vector3(0.012, 0.012, 0.008),
       pearl,
-      root,
+      head,
     );
   }
   return {
     present(walk: WalkSession, seconds: number) {
       root.position.set(walk.x, 0, walk.z);
-      root.rotation.y = walk.heading;
+      head.rotation.y = walk.heading;
       segments.forEach((segment, i) => {
-        segment.position.x = Math.sin(walk.distance * 9 - i * 0.6) * 0.045 * (i / 10);
+        const pose = walk.body.pose(i);
+        const heading = i === 0 ? walk.heading : pose.heading;
+        const sway = Math.sin(walk.distance * 9 - i * 0.6) * 0.018 * (i / 10);
+        segment.position.x = pose.x - walk.x + Math.cos(heading) * sway;
+        segment.position.z = pose.z - walk.z - Math.sin(heading) * sway;
+        segment.rotation.y = heading;
         segment.position.y =
           0.22 + Math.sin(walk.distance * 12 - i * 0.65) * 0.018 + Math.sin(seconds * 1.5) * 0.005;
         segment.scaling.z = 0.19 * (1 + Math.sin(walk.distance * 12 - i * 0.65) * 0.1);

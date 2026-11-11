@@ -149,11 +149,30 @@ export async function createStudyScene(
           mesh.name === 'environment-bark' ||
           mesh.name === 'soil',
       );
+      // setTarget normally rebuilds the orbit from the previous camera position.
+      // Preserve the orbit and explicitly apply it around the new player anchor.
+      camera.setTarget(target, false, false, true);
       camera.alpha = -Math.PI / 2 - yaw;
       camera.beta = pitch;
       camera.radius = hit?.hit ? Math.max(0.65, hit.distance - 0.18) : 4.2;
-      camera.setTarget(target);
       scene.render();
+      const tail = walk.body.pose(10);
+      Object.assign(canvas.dataset, {
+        renderedCameraX: String(camera.position.x),
+        renderedCameraY: String(camera.position.y),
+        renderedCameraZ: String(camera.position.z),
+        cameraTargetX: String(target.x),
+        cameraTargetY: String(target.y),
+        cameraTargetZ: String(target.z),
+        orbitAlpha: String(camera.alpha),
+        orbitBeta: String(camera.beta),
+        orbitRadius: String(camera.radius),
+        renderedCameraYaw: String(yaw),
+        renderedHeadX: String(walk.x),
+        renderedHeadZ: String(walk.z),
+        renderedTailX: String(tail.x),
+        renderedTailZ: String(tail.z),
+      });
       return true;
     },
     dispose() {

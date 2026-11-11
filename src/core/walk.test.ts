@@ -41,14 +41,19 @@ test('bedding requires approach, is placed once, opens the passage, is picked up
   assert.equal(walk.z, -5.2);
 });
 test('camera-relative motion and idle menu do not create stored movement', () => {
-  const walk = new WalkSession();
-  walk.advance(1, { ...forward, yaw: Math.PI / 2 });
+  const walk = new WalkSession(),
+    reference = new WalkSession();
+  for (const state of [walk, reference]) {
+    state.reset(0, Math.PI / 2);
+    state.advance(1, { ...forward, yaw: Math.PI / 2 });
+  }
   assert.ok(walk.x > 1.3);
   assert.ok(Math.abs(walk.z + 5.2) < 1e-8);
   walk.advance(100, { ...forward, forward: 0 });
-  const z = walk.z;
   walk.advance(100.5, forward);
-  assert.ok(Math.abs(walk.z - z - 0.9) < 1e-8);
+  reference.advance(1.5, forward);
+  assert.ok(Math.abs(walk.x - reference.x) < 1e-8);
+  assert.ok(Math.abs(walk.z - reference.z) < 1e-8);
 });
 test('running clock and beetle timeline continue across a menu and background interval', () => {
   const clock = new ActiveClock();

@@ -1,3 +1,4 @@
+import { WormBody } from './wormBody.ts';
 /** Local playable study. No DOM, renderer, transport, or implied partner state. */
 export interface WalkInput {
   forward: number;
@@ -50,11 +51,13 @@ export class WalkSession {
   heading = 0;
   distance = 0;
   beddingAt: number | null = null;
+  readonly body = new WormBody();
   private lastTime = 0;
-  reset(seconds = 0) {
+  reset(seconds = 0, heading = 0) {
     this.x = 0;
     this.z = -5.2;
-    this.heading = 0;
+    this.heading = heading;
+    this.body.reset(this.x, this.z, heading);
     this.distance = 0;
     this.beddingAt = null;
     this.lastTime = seconds;
@@ -81,6 +84,8 @@ export class WalkSession {
       right = input.right / Math.max(1, length);
     const dx = Math.sin(input.yaw) * forward + Math.cos(input.yaw) * right;
     const dz = Math.cos(input.yaw) * forward - Math.sin(input.yaw) * right;
+    const desiredHeading = Math.atan2(dx, dz);
+    const speed = 1.8 * Math.min(1, length);
 
     // Small steps prevent tunnelling; unused time at a wall requires no catch-up work.
     const steps = Math.ceil(elapsed * 120),
@@ -89,8 +94,13 @@ export class WalkSession {
       const oldX = this.x,
         oldZ = this.z;
       const blocked = beetleMotion(seconds - elapsed + (i + 1) * dt, this.beddingAt).blocked;
-      let x = Math.max(-1.35, Math.min(1.35, this.x + dx * 1.8 * dt));
-      let z = Math.max(-6.2, Math.min(7.2, this.z + dz * 1.8 * dt));
+      const angle = Math.atan2(
+        Math.sin(desiredHeading - this.heading),
+        Math.cos(desiredHeading - this.heading),
+      );
+      this.heading += Math.max(-5 * dt, Math.min(5 * dt, angle));
+      let x = Math.max(-1.35, Math.min(1.35, this.x + Math.sin(this.heading) * speed * dt));
+      let z = Math.max(-6.2, Math.min(7.2, this.z + Math.cos(this.heading) * speed * dt));
       const radius = 1.92,
         distance = Math.hypot(x, z);
       if (blocked && distance < radius) {
@@ -104,8 +114,12 @@ export class WalkSession {
       this.z = z;
       const moved = Math.hypot(x - oldX, z - oldZ);
       this.distance += moved;
-      if (moved > 1e-8) this.heading = Math.atan2(dx, dz);
-      else if (!blocked || this.beddingAt === null || seconds < this.beddingAt + 1.5) break;
+      if (moved > 1e-8) this.body.record(x, z);
+      else if (
+        Math.abs(angle) <= 5 * dt &&
+        (!blocked || this.beddingAt === null || seconds < this.beddingAt + 1.5)
+      )
+        break;
     }
   }
 }
