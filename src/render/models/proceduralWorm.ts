@@ -15,7 +15,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import type { sampleIntro } from '../../core/cinematic.ts';
-import { WORM_SEGMENTS } from '../../core/wormBody.ts';
+import { WORM_SEGMENTS, WORM_SPACING } from '../../core/wormBody.ts';
 import type { WalkSession } from '../../core/walk.ts';
 import { ellipsoid, material } from '../meshTools.ts';
 import { createWormSkin } from '../wormSkin.ts';
@@ -42,9 +42,10 @@ export function createProceduralWorm(scene: Scene) {
     const anchor = new Mesh(`worm-segment-${i}`, scene);
     anchor.parent = root;
     anchor.isVisible = false;
-    anchor.position.set(0, WORM_IDLE_Y, -i * 0.14);
+    anchor.position.set(0, WORM_IDLE_Y, -i * WORM_SPACING);
     return anchor;
   });
+  const lids: Mesh[] = [];
   for (const side of [-1, 1]) {
     ellipsoid(
       scene,
@@ -63,6 +64,7 @@ export function createProceduralWorm(scene: Scene) {
       head,
     );
     lid.rotation.z = side * -0.12;
+    lids.push(lid);
     ellipsoid(
       scene,
       'worm-eye-shine',
@@ -136,6 +138,12 @@ export function createProceduralWorm(scene: Scene) {
   }
   return {
     condition,
+    get mouthWorldPosition() {
+      return Vector3.TransformCoordinates(
+        new Vector3(0, -0.025, 0.153),
+        head.computeWorldMatrix(true),
+      );
+    },
     get minimumSurfaceY() {
       let result = minWorldY;
       for (const mesh of faceMeshes) {
@@ -150,6 +158,10 @@ export function createProceduralWorm(scene: Scene) {
       return result;
     },
     presentIntro(sample: ReturnType<typeof sampleIntro>) {
+      for (const lid of lids) {
+        lid.position.y = 0.039 - sample.knockdown * 0.014;
+        lid.scaling.y = 0.006 + sample.knockdown * 0.014;
+      }
       presentPoints(
         segments.map((_, i) => introSegment(sample, i)),
         sample.worm,
@@ -157,6 +169,10 @@ export function createProceduralWorm(scene: Scene) {
       );
     },
     present(walk: WalkSession, seconds: number) {
+      for (const lid of lids) {
+        lid.position.y = 0.039;
+        lid.scaling.y = 0.006;
+      }
       const raw = segments.map((_, i): Point => {
         const p = walk.body.pose(i),
           heading = i === 0 ? walk.heading : p.heading;

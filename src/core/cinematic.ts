@@ -3,7 +3,6 @@ import {
   add,
   mix,
   smooth,
-  clamp,
   rotate,
   beakLocal,
   beakWorld,
@@ -13,32 +12,48 @@ import {
 } from './birds.ts';
 import type { Point } from './birds.ts';
 export type { Point } from './birds.ts';
-
 export const INTRO_DURATION = music.audioDuration;
 export const RELEASE_TIME = 75;
 export const IMPACT_TIME = 110;
+export const BULLET_DURATION = 0.7;
 export const COUGH_TIMES = [5.5, 6.4, 14, 119.2] as const;
 const CONTACT: Point = [0, GRIP_SEGMENT[1], -5.2 + GRIP_SEGMENT[2]];
 const groundCrow = add(CONTACT, beakLocal(1.3).map((v) => -v * CROW_SCALE) as Point);
+const FORWARD_ACCEL = 0.04;
+const FORWARD_AT_RELEASE = FORWARD_ACCEL * (RELEASE_TIME - 32) ** 2;
+function cruise(t: number): Point {
+  const age = Math.max(0, t - 32),
+    lift = smooth(age / 24);
+  return add(groundCrow, [
+    2.2 * Math.sin(age / 18) * smooth(age / 5),
+    44 * lift,
+    FORWARD_ACCEL * age * age,
+  ]);
+}
 function crowPath(t: number): Point {
   if (t < 30)
     return mix([groundCrow[0], 14, groundCrow[2] - 22], groundCrow, smooth((t - 18) / 12));
-  if (t < RELEASE_TIME) {
-    const lift = smooth((t - 32) / 24),
-      returning = 1 - smooth((t - 62) / 13);
-    return add(groundCrow, [
-      Math.sin((t - 34) * 0.13) * 8 * lift * returning,
-      44 * lift,
-      Math.sin((t - 34) * 0.1) * 5 * lift * returning,
-    ]);
-  }
-  return mix(add(groundCrow, [0, 44, 0]), [28, 61, 24], smooth((t - RELEASE_TIME) / 12));
+  if (t <= RELEASE_TIME) return cruise(t);
+  const s = t - RELEASE_TIME;
+  return add(cruise(RELEASE_TIME), [
+    0.05 * s * s,
+    0.12 * s * s,
+    2 * FORWARD_ACCEL * (RELEASE_TIME - 32) * s + 0.06 * s * s,
+  ]);
 }
 function eaglePath(t: number): Point {
-  const contact = add(groundCrow, [1, 47, -1.5]);
-  return t < RELEASE_TIME
-    ? mix(add(contact, [25, 16, -28]), contact, smooth((t - 65) / 10))
-    : mix(contact, [26, 64, 20], smooth((t - RELEASE_TIME) / 12));
+  const contact = add(cruise(RELEASE_TIME), [1, 3, -1.5]);
+  if (t < RELEASE_TIME) return mix(add(contact, [25, 16, 28]), contact, smooth((t - 65) / 10));
+  const s = t - RELEASE_TIME;
+  const p1 = add(contact, [-3, -1, -3.4]),
+    p2 = add(contact, [-6, 2, 8]),
+    p3 = add(contact, [0, 6, 16]);
+  if (s >= 3) return add(p3, [6 * (s - 3), 4 * (s - 3), 8 * (s - 3)]);
+  const u = s / 3,
+    v = 1 - u;
+  return contact.map(
+    (p, i) => v ** 3 * p + 3 * v * v * u * p1[i]! + 3 * v * u * u * p2[i]! + u ** 3 * p3[i]!,
+  ) as Point;
 }
 const velocity = (path: (t: number) => Point, t: number): Point =>
   path(t + 0.025).map((v, i) => (v - path(t - 0.025)[i]!) / 0.05) as Point;
@@ -48,16 +63,8 @@ function crowPose(t: number) {
   const open =
     smooth((t - 30) / 0.8) * (1 - smooth((t - 31.6) / 0.4)) + 0.7 * smooth((t - 74.6) / 0.4);
   const pose = flightRig(t, crowPath(t), velocity(crowPath, t), false, dip, open, grounded);
-  const lift = smooth((t - 32) / 3);
-  if (t >= 30 && t < 35) pose.rotation = pose.rotation.map((v) => v * lift) as Point;
-  // Settle into the escape bearing before release instead of turning at a zero-speed cusp.
-  const escapeYaw = Math.atan2(28 - groundCrow[0], 24 - groundCrow[2]);
-  const turn = smooth((t - 69) / 5);
-  const delta = Math.atan2(
-    Math.sin(escapeYaw - pose.rotation[1]),
-    Math.cos(escapeYaw - pose.rotation[1]),
-  );
-  pose.rotation[1] += delta * turn;
+  if (t >= 30 && t < 35)
+    pose.rotation = pose.rotation.map((v) => v * smooth((t - 32) / 3)) as Point;
   return pose;
 }
 function carriedWorm(t: number) {
@@ -81,8 +88,39 @@ export const FALL_START_SPEED = FALL_REFERENCE_SPEED * 3;
 export const FALL_END_SPEED = FALL_REFERENCE_SPEED * 6;
 export const FALL_HEIGHT = (FALL_START_SPEED + FALL_END_SPEED) * 0.5 * FALL_SECONDS;
 export const SKY_LIFT = FALL_HEIGHT - baseRelease.position[1];
-const release = { ...baseRelease, position: add(baseRelease.position, [0, SKY_LIFT, 0]) };
+const release = {
+  ...baseRelease,
+  position: add(baseRelease.position, [0, SKY_LIFT, -FORWARD_AT_RELEASE]),
+};
+export const SUN_DIRECTION: Point = [1, 0.32, 0.08].map(
+  (v) => v / Math.hypot(1, 0.32, 0.08),
+) as Point;
+export const SUN_RADIUS = 17;
+export const SUN_POSITION = add(
+  add(release.position, rotate([0, 0.17, -1.05], release.rotation)),
+  SUN_DIRECTION.map((v) => v * 90) as Point,
+);
 
+/** Slow the release, then smoothly repay the lost motion time without changing the music/impact. */
+export function fallClock(elapsed: number) {
+  const s = Math.max(0, Math.min(FALL_SECONDS, elapsed)),
+    slow = 0.12,
+    ramp = 1;
+  const fast =
+    (FALL_SECONDS - slow * (BULLET_DURATION + ramp / 2)) /
+    (FALL_SECONDS - BULLET_DURATION - ramp / 2);
+  if (s <= BULLET_DURATION) return { seconds: slow * s, rate: slow };
+  const u = Math.min(1, (s - BULLET_DURATION) / ramp);
+  const integral = u ** 3 - 0.5 * u ** 4;
+  return {
+    seconds:
+      slow * BULLET_DURATION +
+      slow * u * ramp +
+      (fast - slow) * ramp * integral +
+      Math.max(0, s - BULLET_DURATION - ramp) * fast,
+    rate: slow + (fast - slow) * smooth(u),
+  };
+}
 export function sampleIntro(seconds: number) {
   const time = Math.max(0, Math.min(INTRO_DURATION, seconds));
   const phase =
@@ -101,18 +139,18 @@ export function sampleIntro(seconds: number) {
                 : time < IMPACT_TIME
                   ? 'fall'
                   : 'aftermath';
-  // A cinematic altitude cheat at the attack cut: birds, worm and camera move together.
-  const altitude: Point = time >= 67 ? [0, SKY_LIFT, 0] : [0, 0, 0];
+  const altitude: Point = time >= 67 ? [0, SKY_LIFT, -FORWARD_AT_RELEASE] : [0, 0, 0];
   const crowPoseSample = crowPose(time);
   crowPoseSample.position = add(crowPoseSample.position, altitude);
-  const crow = crowPoseSample.position;
-  const eaglePose = flightRig(time, eaglePath(time), velocity(eaglePath, time), true);
+  const crow = crowPoseSample.position,
+    eaglePose = flightRig(time, eaglePath(time), velocity(eaglePath, time), true);
   eaglePose.position = add(eaglePose.position, altitude);
   const eagle = eaglePose.position;
-  eaglePose.rotation[1] = -0.73 + 1.46 * smooth((time - 74) / 5);
+  if (time >= 75 && time < 78) eaglePose.rotation[2] += Math.sin(((time - 75) / 3) * Math.PI) * 0.3;
   const carried = time >= 32 && time < RELEASE_TIME,
     falling = phase === 'fall';
-  const fall = clamp((time - RELEASE_TIME) / (IMPACT_TIME - RELEASE_TIME));
+  const clock = fallClock(time - RELEASE_TIME),
+    fall = clock.seconds / FALL_SECONDS;
   const attachment = carriedWorm(time);
   attachment.position = add(attachment.position, altitude);
   attachment.grip = add(attachment.grip, altitude);
@@ -132,21 +170,30 @@ export function sampleIntro(seconds: number) {
             Math.sin(fall * Math.PI) * 0.5,
         ]
       : [0, 0, -5.2];
-  // Same slow angular speed as the previous 20-second fall, now over 35 seconds.
-  const spin = (time - RELEASE_TIME) / 20;
-  const rotation: Point = falling
-    ? [spin * Math.PI * 2, release.rotation[1] + spin * Math.PI * 0.8, spin * Math.PI * 2]
+  const landingBlend = falling ? smooth((time - 109.4) / 0.6) : time >= IMPACT_TIME ? 1 : 0;
+  const spin = clock.seconds / 20;
+  let rotation: Point = falling
+    ? [
+        spin * Math.PI * 2,
+        release.rotation[1] + spin * Math.PI * 0.8,
+        release.rotation[2] + spin * Math.PI * 2,
+      ]
     : carried
       ? attachment.rotation
       : [0, 0, 0];
+  if (falling)
+    rotation = rotation.map(
+      (v) => v + (Math.round(v / (Math.PI * 2)) * Math.PI * 2 - v) * landingBlend,
+    ) as Point;
   const cough = COUGH_TIMES.reduce((sum, cue) => {
     const dt = time - cue;
     return sum + (dt >= 0 && dt < 0.65 ? Math.sin((dt / 0.65) * Math.PI) * Math.exp(-dt * 3) : 0);
   }, 0);
   const closeup = (time >= 40 && time < 44) || (time >= 58 && time < 63);
+  const bullet = falling && time < RELEASE_TIME + BULLET_DURATION;
   const shot = closeup
     ? 9
-    : time < 10
+    : time < 4
       ? 0
       : time < 18
         ? 1
@@ -166,45 +213,56 @@ export function sampleIntro(seconds: number) {
   let camera: Point, target: Point;
   if (shot === 9) {
     const side = time < 44 ? 1 : -1;
-    const push = smooth((time - (side === 1 ? 40 : 58)) / 5);
-    target = add(worm, rotate([0, 0.2, -0.02], rotation));
-    camera = add(
-      target,
-      rotate(
-        [side * (1.8 - 0.15 * push), 0.55, 1.5 - 0.1 * push],
-        [0, crowPoseSample.rotation[1], 0],
-      ),
-    );
+    target = add(worm, rotate([0, 0.16, -0.02], rotation));
+    camera = add(target, rotate([side * 2.3, 0.7, 1.9], [0, crowPoseSample.rotation[1], 0]));
   } else if (shot === 0) {
-    camera = mix([-2.8, 2.7, -7.3], [-1.25, 1.15, -6.6], smooth(time / 10));
-    target = [0, 0.22, -5.6];
+    camera = mix([1.3, 1, -3.4], [0.65, 0.55, -3.9], smooth(time / 4));
+    target = [0, 0.13, -5.3];
   } else if (shot === 1) {
-    camera = mix([0.85, 1, -3.65], [0.42, 0.7, -4.25], smooth((time - 10) / 8));
-    target = [0, 0.22, -5.5];
+    camera = mix([0.48, 0.4, -4.2], [0.28, 0.32, -4.35], smooth((time - 4) / 14));
+    target = [0, 0.12, -5.08];
   } else if (shot === 2 || shot === 3) {
     target = mix(crow, beakWorld(crow, crowPoseSample.rotation, crowPoseSample.dip), 0.4);
-    camera = add(target, shot === 2 ? [11, 5, 16] : [-10, 4, 14]);
+    camera = add(target, shot === 2 ? [16.5, 7.5, 24] : [-15, 6, 21]);
   } else if (shot === 4 || shot === 5) {
-    const angle = (time - 44) * 0.035;
     target = mix(crow, attachment.position, 0.35);
-    camera = add(target, [Math.cos(angle) * 19, 5, Math.sin(angle) * 19]);
+    camera = add(target, [24, 9, -34]);
   } else if (shot === 6) {
     target = mix(crow, eagle, 0.5);
-    camera = add(target, mix([22, 10, 35], [14, 6, 24], smooth((time - 67) / 8)));
+    camera = add(target, mix([66, 22.5, 18], [51, 15, 22.5], smooth((time - 67) / 8)));
   } else if (shot === 7) {
-    target = add(worm, rotate([0, 0.18, -0.7], rotation));
-    // Approach above the centre of the passage so rocks/banks cannot cover the impact.
-    camera = add(target, mix([2.8, 1.1, 4.1], [0.45, 2.2, 3.3], smooth((time - 107) / 3)));
+    target = add(worm, rotate([0, 0.17, -1.05], rotation));
+    const solarOffset = SUN_DIRECTION.map((v) => -v * 8) as Point;
+    const orbit = smooth((time - 75.7) / 4);
+    const direction = mix(solarOffset, [3.8, 1.5, 5.5], orbit);
+    const radius = 8 + (Math.hypot(3.8, 1.5, 5.5) - 8) * orbit;
+    const offset = direction.map((v) => (v * radius) / Math.hypot(...direction)) as Point;
+    camera = add(target, mix(offset, [0.45, 2.5, 4.3], smooth((time - 107) / 3)));
   } else {
-    camera = mix([1.2, 0.8, -3.8], [0, 2.38, -8.98], smooth((time - 124) / (INTRO_DURATION - 124)));
-    target = mix([0, 0.16, -5.6], [0, 0.55, -5.2], smooth((time - 124) / (INTRO_DURATION - 124)));
+    const after = time - IMPACT_TIME;
+    camera = mix([0.15, 5.2, -6.2], [1.2, 0.8, -3.8], smooth(after - 1.1));
+    target = [0, 0.12, -6.2];
+    camera = mix(camera, [0, 2.38, -8.98], smooth((time - 124) / (INTRO_DURATION - 124)));
+    target = mix(target, [0, 0.55, -5.2], smooth((time - 124) / (INTRO_DURATION - 124)));
   }
+  const after = time - IMPACT_TIME;
+  const knockdown = after >= 0 ? 1 - smooth((after - 1.1) / 0.4) : 0;
+  const headLift =
+    after < 1.1
+      ? 0
+      : 0.055 * smooth((after - 1.1) / 1.5) * (1 - 0.7 * smooth((after - 2.6) / 0.8)) +
+        0.035 * smooth((after - 3.6) / 1.4);
   return {
     time,
+    motionTime: falling ? RELEASE_TIME + clock.seconds : time,
     phase,
     shot,
     closeup,
-    fallSpeed: falling ? FALL_START_SPEED + (FALL_END_SPEED - FALL_START_SPEED) * fall : 0,
+    bullet,
+    solarStrength: falling ? 1 - smooth((time - 75.7) / 1.3) : 0,
+    fallSpeed: falling
+      ? (FALL_START_SPEED + (FALL_END_SPEED - FALL_START_SPEED) * fall) * clock.rate
+      : 0,
     done: seconds >= INTRO_DURATION,
     cough,
     camera,
@@ -213,14 +271,18 @@ export function sampleIntro(seconds: number) {
     rotation,
     crow,
     crowPose: crowPoseSample,
-    crowVisible: time >= 18 && time < 91,
+    // The release cuts to an isolated solar portrait; the pursuit stays outside this shot.
+    crowVisible: time >= 18 && time < RELEASE_TIME,
     eagle,
     eaglePose,
-    eagleVisible: time >= 65 && time < 91,
+    eagleVisible: time >= 65 && time < RELEASE_TIME,
     carried,
     falling,
     grip: attachment.grip,
-    impact: time >= IMPACT_TIME && time < IMPACT_TIME + 1.4 ? (time - IMPACT_TIME) / 1.4 : -1,
+    landingBlend,
+    knockdown,
+    headLift,
+    impact: after >= 0 && after < 1.4 ? after / 1.4 : -1,
     rise: smooth((time - 120) / (INTRO_DURATION - 120)),
     handoff: smooth((time - 124) / (INTRO_DURATION - 124)),
     fade: 1 - smooth(time / 1.5),

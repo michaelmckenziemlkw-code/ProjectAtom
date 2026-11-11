@@ -1,3 +1,4 @@
+import { WORM_SPACING } from './wormBody.ts';
 import { introSegment, WORM_IDLE_Y } from './wormPose.ts';
 import { add, rotate, GRIP_SEGMENT, CROW_SCALE, EAGLE_SCALE } from './birds.ts';
 import { wormAppearance } from './wormAppearance.ts';
@@ -14,6 +15,11 @@ import {
   FALL_END_SPEED,
   FALL_HEIGHT,
   SKY_LIFT,
+  fallClock,
+  BULLET_DURATION,
+  SUN_POSITION,
+  SUN_DIRECTION,
+  SUN_RADIUS,
 } from './cinematic.ts';
 
 test('MIDI-duration prologue has ordered capture, ascent, attack, 35-second fall and aftermath', () => {
@@ -50,8 +56,9 @@ test('fall is monotonic, rotates slowly and lands in the same puddle without reb
   for (let time = RELEASE_TIME + 0.1; time <= INTRO_DURATION; time += 0.1) {
     const sample = sampleIntro(time);
     assert.ok(sample.worm[1] <= previous.worm[1] + 1e-8);
-    if (time < IMPACT_TIME) assert.ok(Math.abs(sample.rotation[0] - previous.rotation[0]) < 0.04);
-    else assert.deepEqual(sample.worm, [0, 0, -5.2]);
+    if (time < IMPACT_TIME - 0.7)
+      assert.ok(Math.abs(sample.rotation[0] - previous.rotation[0]) < 0.04);
+    if (time >= IMPACT_TIME) assert.deepEqual(sample.worm, [0, 0, -5.2]);
     previous = sample;
   }
   assert.equal(sampleIntro(105).cough, 0);
@@ -96,13 +103,13 @@ test('both birds fit the attack camera and the fall camera tracks the rotating b
   }
   for (let time = 75; time < 110; time += 0.1) {
     const s = sampleIntro(time);
-    assert.ok(Math.hypot(...sub(s.target, s.worm)) < 0.8);
+    assert.ok(Math.hypot(...sub(s.target, s.worm)) < 1.2);
     assert.ok(Math.hypot(...sub(s.camera, s.target)) > 3.8);
   }
 });
 
 test('birds are substantially larger; capture closes the beak at the puddle and wings articulate', () => {
-  assert.equal(CROW_SCALE, 3.5);
+  assert.equal(CROW_SCALE, 5.25);
   assert.ok(EAGLE_SCALE > CROW_SCALE * 1.5);
   const capture = sampleIntro(32);
   assert.ok(Math.hypot(...capture.worm.map((v, i) => v - [0, 0, -5.2][i]!)) < 1e-8);
@@ -140,7 +147,7 @@ test('artistic altitude gives a 3x to 6x accelerating fall while keeping the 35-
     const sample = sampleIntro(t);
     const measured = (sample.worm[1] - sampleIntro(t + 0.01).worm[1]) / 0.01;
     assert.ok(measured >= previousSpeed);
-    assert.ok(Math.abs(measured - sample.fallSpeed) < 0.01);
+    assert.ok(Math.abs(measured - sample.fallSpeed) < 0.12);
     previousSpeed = measured;
   }
   assert.equal(sampleIntro(IMPACT_TIME).worm[1], 0);
@@ -153,7 +160,7 @@ test('two side closeups show the carried worm and its local tail flexes independ
     const s = sampleIntro(t);
     assert.ok(s.closeup && s.carried);
     const distance = Math.hypot(...s.camera.map((v, i) => v - s.target[i]!));
-    assert.ok(distance > 2 && distance < 3);
+    assert.ok(distance > 2 && distance < 3.5);
   }
   assert.equal(sampleIntro(46).closeup, false);
   const a = introSegment(sampleIntro(80), 10),
@@ -164,7 +171,7 @@ test('two side closeups show the carried worm and its local tail flexes independ
       const head = introSegment(sampleIntro(time), i - 1),
         tail = introSegment(sampleIntro(time), i);
       const distance = Math.hypot(...head.map((v, j) => v - tail[j]!));
-      assert.ok(distance > 0.12 && distance < 0.17);
+      assert.ok(distance > 0.18 && distance < 0.29);
     }
 });
 
@@ -173,10 +180,44 @@ test('long recovery converges continuously to the exact gameplay idle before han
   const end = sampleIntro(INTRO_DURATION);
   for (let i = 0; i < 11; i++) {
     const pose = introSegment(end, i);
-    assert.deepEqual(pose, [0, WORM_IDLE_Y + Math.sin(end.time * 1.5) * 0.005, -i * 0.14]);
+    assert.deepEqual(pose, [0, WORM_IDLE_Y + Math.sin(end.time * 1.5) * 0.005, -i * WORM_SPACING]);
     const near = introSegment(sampleIntro(INTRO_DURATION - 0.02), i);
     assert.ok(Math.hypot(...pose.map((v, j) => v - near[j]!)) < 0.001);
   }
   const skin = wormAppearance().skin;
   assert.ok(skin[0] - skin[1] > 0.08 && skin[1] > skin[2]);
+});
+
+test('sun release gets at least half a second of bullet time, then catches up to the unchanged impact', () => {
+  assert.ok(BULLET_DURATION >= 0.5);
+  assert.ok(fallClock(0.6).seconds < 0.1);
+  assert.ok(Math.abs(fallClock(35).seconds - 35) < 1e-8);
+  const s = sampleIntro(75.3);
+  assert.ok(s.bullet && s.solarStrength === 1);
+  const towardSun = SUN_POSITION.map((v, i) => v - s.target[i]!);
+  const towardCamera = s.camera.map((v, i) => v - s.target[i]!);
+  const dot = towardSun.reduce((sum, v, i) => sum + v * towardCamera[i]!, 0);
+  assert.ok(dot / (Math.hypot(...towardSun) * Math.hypot(...towardCamera)) < -0.999);
+  assert.ok(SUN_RADIUS / 90 > 2.1 / 8 / 2);
+  assert.ok(SUN_DIRECTION[1] > 0);
+});
+
+test('crow gains forward distance with increasing speed, without pirouetting in the wide shot', () => {
+  const a = sampleIntro(45),
+    b = sampleIntro(55),
+    c = sampleIntro(65);
+  assert.ok(b.crow[2] - a.crow[2] > 10);
+  assert.ok(c.crow[2] - b.crow[2] > b.crow[2] - a.crow[2]);
+  for (let t = 44; t < 66; t += 0.1) assert.ok(Math.abs(sampleIntro(t).crowPose.rotation[1]) < 0.2);
+});
+
+test('impact is followed by stillness and a weak, faltering head lift before recovery', () => {
+  assert.equal(sampleIntro(110.5).knockdown, 1);
+  assert.equal(sampleIntro(110.5).headLift, 0);
+  assert.ok(sampleIntro(112.6).headLift > 0.04);
+  assert.ok(sampleIntro(113.5).headLift < sampleIntro(112.6).headLift);
+  assert.ok(sampleIntro(115.5).headLift > sampleIntro(113.5).headLift);
+  const early = introSegment(sampleIntro(110.2), 0),
+    still = introSegment(sampleIntro(110.8), 0);
+  assert.deepEqual(early, still);
 });

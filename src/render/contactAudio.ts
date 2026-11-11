@@ -99,10 +99,24 @@ export class ContactAudio {
       filter.type = 'bandpass';
       filter.frequency.value = 680;
       filter.Q.value = 0.8;
-      gain.gain.value = 0.7;
+      gain.gain.value = 0.35;
       source.connect(filter).connect(gain).connect(this.master);
       track(source, [filter, gain]);
       source.start(start + at);
+    }
+    if (elapsed < 110) {
+      const thud = ctx.createOscillator(),
+        gain = ctx.createGain();
+      const at = start + 110;
+      thud.frequency.setValueAtTime(82, at);
+      thud.frequency.exponentialRampToValueAtTime(28, at + 0.22);
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(0.13, at + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
+      thud.connect(gain).connect(this.master);
+      track(thud, [gain]);
+      thud.start(at);
+      thud.stop(at + 0.3);
     }
   }
   presentIntro(hidden: boolean): void {

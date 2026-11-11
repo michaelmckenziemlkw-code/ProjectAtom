@@ -9,7 +9,7 @@ interface PathPoint {
   distance: number;
 }
 export const WORM_SEGMENTS = 11;
-export const WORM_SPACING = 0.14;
+export const WORM_SPACING = 0.21;
 
 /** Arc-length history: body segments follow the head's actual path, not its rotation. */
 export class WormBody {

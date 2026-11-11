@@ -1,6 +1,8 @@
+import { createCinematicSky } from './cinematicSky.ts';
+import { ColorCurves } from '@babylonjs/core/Materials/colorCurves';
 import { MOUTH } from '../core/birds.ts';
 import { createProceduralBird } from './models/proceduralBird.ts';
-import { sampleIntro } from '../core/cinematic.ts';
+import { sampleIntro, SUN_POSITION } from '../core/cinematic.ts';
 import { createIntroStage } from './introStage.ts';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
@@ -9,7 +11,7 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { Scene } from '@babylonjs/core/scene';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Ray } from '@babylonjs/core/Culling/ray';
 import type { BeetleFactory } from './models/beetle.ts';
 import type { Observation } from '../core/observation.ts';
@@ -30,6 +32,9 @@ export async function createStudyScene(
     powerPreference: 'high-performance',
   });
   const scene = new Scene(engine);
+  const grade = new ColorCurves();
+  scene.imageProcessingConfiguration.colorCurves = grade;
+  scene.imageProcessingConfiguration.colorCurvesEnabled = true;
   scene.clearColor = new Color4(0.18, 0.17, 0.2, 1);
   scene.ambientColor = new Color3(0.19, 0.16, 0.19);
   scene.fogMode = Scene.FOGMODE_EXP2;
@@ -66,6 +71,7 @@ export async function createStudyScene(
   const crow = createProceduralBird(scene);
   const eagle = createProceduralBird(scene, true);
   const introStage = createIntroStage(scene);
+  const sky = createCinematicSky(scene);
   introStage.present(null);
   const leaf = ellipsoid(
     scene,
@@ -92,6 +98,7 @@ export async function createStudyScene(
   shadows.bias = 0.0007;
   shadows.normalBias = 0.02;
   for (const mesh of scene.meshes) {
+    if (mesh.name.startsWith('sky-')) continue;
     mesh.receiveShadows = true;
     if (mesh.name !== 'soil' && !mesh.name.startsWith('dust')) shadows.addShadowCaster(mesh);
   }
@@ -134,7 +141,24 @@ export async function createStudyScene(
       fill.intensity = 0.8 - 0.05 * sample.handoff;
       environment.present('tap', seconds, false);
       worm.presentIntro(sample);
-      introStage.present(seconds);
+      introStage.present(seconds, worm.mouthWorldPosition);
+      sky.present(sample);
+      if (
+        sample.falling ||
+        sample.phase === 'ascent' ||
+        sample.phase === 'flight' ||
+        sample.phase === 'attack'
+      ) {
+        scene.clearColor.set(0.12, 0.35, 0.61, 1);
+        scene.fogColor.set(0.56, 0.72, 0.89);
+        scene.fogDensity = 0.002;
+        fill.intensity = 0.85 - 0.6 * sample.solarStrength;
+        fill.diffuse.set(0.68, 0.82, 1);
+        sun.intensity = 0.95 - 0.55 * sample.solarStrength;
+      } else fill.diffuse.set(0.66, 0.72, 0.86);
+      const exhaustion = sample.phase === 'aftermath' ? 1 - sample.handoff : 0;
+      grade.globalSaturation = -30 * exhaustion;
+      scene.imageProcessingConfiguration.exposure = 1 - 0.16 * exhaustion;
       camera.fov = 0.75 + 0.25 * sample.handoff;
       camera.setTarget(Vector3.FromArray(sample.target));
       camera.setPosition(Vector3.FromArray(sample.camera));
@@ -161,6 +185,23 @@ export async function createStudyScene(
       canvas.dataset.beetleVisible = String(actor.root.isEnabled());
       canvas.dataset.sceneFog = String(scene.fogDensity);
       canvas.dataset.sunTint = sun.diffuse.toHexString();
+      const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+      const projectedSun = Vector3.Project(
+        Vector3.FromArray(SUN_POSITION),
+        Matrix.Identity(),
+        scene.getTransformMatrix(),
+        viewport,
+      );
+      const projectedTarget = Vector3.Project(
+        Vector3.FromArray(sample.target),
+        Matrix.Identity(),
+        scene.getTransformMatrix(),
+        viewport,
+      );
+      canvas.dataset.solarAlignment = String(
+        Math.hypot(projectedSun.x - projectedTarget.x, projectedSun.y - projectedTarget.y) /
+          engine.getRenderWidth(),
+      );
       const neck = scene.getTransformNodeByName('crow-neck')!;
       const mouth = Vector3.TransformCoordinates(Vector3.FromArray(MOUTH), neck.getWorldMatrix());
       const segment = scene.getMeshByName('worm-segment-3')!;
@@ -169,7 +210,23 @@ export async function createStudyScene(
           ? String(Vector3.Distance(mouth, segment.getAbsolutePosition()))
           : '',
         introShot: String(sample.shot),
+        cloudBanks: String(scene.meshes.filter((m) => m.name.startsWith('sky-cloud-bank')).length),
+        cloudThickness: String(
+          scene.getMeshByName('sky-cloud-bank-0')!.getBoundingInfo().boundingBox.extendSizeWorld.y *
+            2,
+        ),
+        visibleMist: String(
+          scene.meshes.filter((m) => m.name.startsWith('sky-near-mist') && m.isEnabled()).length,
+        ),
+        bloodDrops: String(
+          scene.meshes.filter((m) => m.name === 'cough-drop' && m.isEnabled()).length,
+        ),
         introPhase: sample.phase,
+        introBullet: String(sample.bullet),
+        introMotionTime: String(sample.motionTime),
+        introKnockdown: String(sample.knockdown),
+        introHeadLift: String(sample.headLift),
+        introCrowZ: String(sample.crow[2]),
         introCloseup: String(sample.closeup),
         introFallSpeed: String(sample.fallSpeed),
         introRise: String(sample.rise),
@@ -192,6 +249,10 @@ export async function createStudyScene(
       pitch: number,
     ) {
       actor.root.setEnabled(true);
+      sky.present(null);
+      grade.globalSaturation = 0;
+      scene.imageProcessingConfiguration.exposure = 1;
+      fill.diffuse.set(0.66, 0.72, 0.86);
       crow.hide();
       eagle.hide();
       scene.fogDensity = 0.045;

@@ -8,19 +8,20 @@ import {
   WORM_FLOOR,
   wormRadius,
 } from './wormSurface.ts';
+import { WORM_SPACING } from './wormBody.ts';
 import { introSegment } from './wormPose.ts';
 import { sampleIntro } from './cinematic.ts';
 import { add, rotate } from './birds.ts';
 
-test('reference body is one closed indexed surface with fine rings and a slender tapered tail', () => {
+test('reference body is one closed indexed surface with fine rings and a full rounded tail', () => {
   const s = sampleIntro(90),
     p = Array.from({ length: 11 }, (_, i) => introSegment(s, i));
   const mesh = buildWormSurface(p);
   assert.equal(mesh.positions.length % 3, 0);
   assert.equal(mesh.uvs.length, (mesh.positions.length / 3) * 2);
   assert.ok(mesh.positions.length / 3 > 1500);
-  assert.ok(wormRadius(0.9) < wormRadius(0.1) * 0.35);
-  assert.ok(wormRadius(1) < 0.005);
+  assert.ok(wormRadius(0.9) > wormRadius(0.1) * 0.9);
+  assert.ok(wormRadius(0.97) > 0.07);
   const edges = new Map<string, number>();
   // UV seam has duplicate positions; weld before checking watertightness.
   const keys = mesh.positions.reduce<string[]>((out, _, i) => {
@@ -70,7 +71,7 @@ test('skin normals face outward so the upper surface receives the sunset key lig
   const points: [number, number, number][] = Array.from({ length: 11 }, (_, i) => [
     0,
     0.13,
-    -i * 0.14,
+    -i * WORM_SPACING,
   ]);
   const s = buildWormSurface(points),
     normals: number[] = [];
@@ -79,4 +80,14 @@ test('skin normals face outward so the upper surface receives the sunset key lig
   assert.ok(normals[top + 1]! > 0.9);
   assert.ok(normals[normals.length - 4]! > 0.9);
   assert.ok(normals[normals.length - 1]! < -0.9);
+});
+
+test('floor correction preserves the tail cross-section instead of flattening it into the water', () => {
+  const s = sampleIntro(110.3),
+    raw = Array.from({ length: 11 }, (_, i) => introSegment(s, i));
+  const controls = groundWormControls(raw, s.worm, s.rotation),
+    surface = buildWormSurface(controls, s.worm, s.rotation);
+  const ring = 100,
+    heights = Array.from({ length: 17 }, (_, i) => surface.positions[(ring * 17 + i) * 3 + 1]!);
+  assert.ok(Math.max(...heights) - Math.min(...heights) > 0.12);
 });

@@ -13,17 +13,17 @@ test('head follows a corner before the middle and tail, even when render samples
   assert.equal(body.pose(5).x, 0);
   assert.equal(body.pose(10).x, 0);
   assert.ok(Math.abs(body.pose(5).z - middle.z - 0.1) < 1e-8);
-  body.record(0.9, 0.7);
+  body.record(1.2, 0.7);
   assert.ok(body.pose(5).x > 0);
   assert.equal(body.pose(10).x, 0);
-  body.record(1.8, 0.7);
+  body.record(2.7, 0.7);
   assert.ok(body.pose(10).x > 0);
   assert.ok(tail.z < 0.7);
 });
 test('body samples preserve spacing along the path and resetting removes old turns', () => {
   const body = new WormBody(0, 0);
   body.record(0, 2);
-  body.record(2, 2);
+  body.record(3, 2);
   for (let i = 1; i < WORM_SEGMENTS; i++)
     assert.ok(
       Math.abs(
@@ -33,7 +33,7 @@ test('body samples preserve spacing along the path and resetting removes old tur
     );
   body.reset(0, -5.2);
   assert.equal(body.pose(0).x, 0);
-  assert.ok(Math.abs(body.pose(10).z + 6.6) < 1e-8);
+  assert.ok(Math.abs(body.pose(10).z + 5.2 + 10 * WORM_SPACING) < 1e-8);
 });
 test('head turns progressively, stationary mouse direction does not rotate the body', () => {
   const walk = new WalkSession();

@@ -1,10 +1,11 @@
+import { WORM_SPACING } from './wormBody.ts';
 /** Shared rig math: the worm attachment uses exactly the rendered bird transforms. */
 export type Point = [number, number, number];
-export const CROW_SCALE = 3.5;
-export const EAGLE_SCALE = 5.8;
+export const CROW_SCALE = 5.25;
+export const EAGLE_SCALE = 8.7;
 export const NECK: Point = [0, 0.15, 0.34];
 export const MOUTH: Point = [0, 0.04, 0.69];
-export const GRIP_SEGMENT: Point = [0, 0.16, -0.42];
+export const GRIP_SEGMENT: Point = [0, 0.16, -3 * WORM_SPACING];
 export const add = (a: Point, b: Point): Point => a.map((v, i) => v + b[i]!) as Point;
 export const mix = (a: Point, b: Point, t: number): Point =>
   a.map((v, i) => v + (b[i]! - v) * t) as Point;

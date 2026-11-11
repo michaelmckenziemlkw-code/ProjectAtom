@@ -21,9 +21,11 @@ const inverseRotate = (p: Point, r: Point): Point => [
   dot(p, rotate([0, 0, 1], r)),
 ];
 export function wormRadius(u: number): number {
-  const ring = 1 - 0.035 * Math.pow(0.5 + 0.5 * Math.cos(u * Math.PI * 64), 8);
-  const girdle = 1 + 0.1 * Math.exp(-Math.pow((u - 0.26) / 0.055, 4));
-  return (0.004 + 0.079 * Math.pow(Math.max(0, 1 - u), 0.65)) * ring * girdle;
+  const ring = 1 - 0.025 * Math.pow(0.5 + 0.5 * Math.cos(u * Math.PI * 64), 8);
+  const girdle = 1 + 0.07 * Math.exp(-Math.pow((u - 0.26) / 0.055, 4));
+  // Uniform trunk, with a hemispherical rounding only over the final four percent.
+  const end = Math.max(0, Math.min(1, (u - 0.96) / 0.04));
+  return 0.081 * ring * girdle * Math.sqrt(Math.max(0.01, 1 - end * end));
 }
 export function wormHeadAngles(points: Point[]): Point {
   const d = subtract(points[0]!, points[1]!);
@@ -71,7 +73,8 @@ export function headVerticalExtent(points: Point[], rotation: Point): number {
 }
 export function groundWormControls(points: Point[], position: Point, rotation: Point): Point[] {
   const result = points.map((p) => [...p] as Point);
-  if (position[1] > 2) return result;
+  const reach = Math.max(...points.map((p) => Math.hypot(...p))) + 0.3;
+  if (position[1] > reach) return result;
   for (let i = 0; i < result.length; i++) {
     const world = add(position, rotate(result[i]!, rotation));
     // Conservative radial clearance; exact surface projection below handles spline overshoot.
@@ -89,6 +92,23 @@ export function groundWormControls(points: Point[], position: Point, rotation: P
     if (world[1] >= height) break;
     world[1] = height;
     result[0] = inverseRotate(subtract(world, position), rotation);
+  }
+  // Preserve a round tail: move the entire curve by any residual spline penetration.
+  // The old per-vertex projection could flatten the tail into the water surface.
+  const surface = buildWormSurface(result);
+  let minimum = Infinity;
+  for (let i = 0; i < surface.positions.length; i += 3)
+    minimum = Math.min(
+      minimum,
+      position[1] +
+        rotate(
+          [surface.positions[i]!, surface.positions[i + 1]!, surface.positions[i + 2]!],
+          rotation,
+        )[1],
+    );
+  if (minimum < WORM_FLOOR + 0.003) {
+    const correction = inverseRotate([0, WORM_FLOOR + 0.003 - minimum, 0], rotation);
+    for (let i = 0; i < result.length; i++) result[i] = add(result[i]!, correction);
   }
   return result;
 }
@@ -117,11 +137,14 @@ export function buildWormSurface(
   const positions: number[] = [],
     uvs: number[] = [],
     indices: number[] = [];
+  const reach = Math.max(...points.map((p) => Math.hypot(...p))) + 0.3;
   for (let i = 0; i <= SURFACE_RINGS; i++) {
     const u = i / SURFACE_RINGS,
       c = centre(points, u);
     const tangent = normal(subtract(centre(points, u - 0.002), centre(points, u + 0.002)));
-    const right = normal([tangent[2], 0, -tangent[0]]),
+    const right = normal(
+        Math.hypot(tangent[0], tangent[2]) < 1e-6 ? [1, 0, 0] : [tangent[2], 0, -tangent[0]],
+      ),
       up = normal(cross(tangent, right));
     const radius = wormRadius(u);
     for (let side = 0; side <= SURFACE_SIDES; side++) {
@@ -130,7 +153,7 @@ export function buildWormSurface(
         (v, axis) =>
           v + right[axis]! * Math.cos(angle) * radius + up[axis]! * Math.sin(angle) * radius * 0.9,
       ) as Point;
-      if (position[1] < 2) {
+      if (position[1] < reach) {
         const world = add(position, rotate(p, rotation));
         if (world[1] < WORM_FLOOR) {
           world[1] = WORM_FLOOR;

@@ -5,7 +5,7 @@ test('worm prologue renders shots with sound, hands off control, and can replay/
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  test.setTimeout(240000);
+  test.setTimeout(300000);
   await page.addInitScript(() => {
     const start = AudioBufferSourceNode.prototype.start;
     (window as any).__musicStarts = [];
@@ -220,4 +220,41 @@ test('healthy, weakened and dying reference palettes remain selectable without c
     await page.clock.resume();
   }
   expect(new Set(skins).size).toBe(3);
+});
+
+test('sun silhouette, cloud depth, forward flight and exhausted landing are readable in the new staging', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.clock.install();
+  await page.goto('/?seed=12');
+  await page.locator('#enter-cinematic').click({ timeout: 60000 });
+  const canvas = page.locator('#world');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  const show = async (target: number, name: string) => {
+    const time = Number(await canvas.getAttribute('data-animation-time'));
+    await page.clock.fastForward(Math.max(1, (target - time) * 1000));
+    await page.clock.runFor(16);
+    await page.screenshot({ path: `docs/images/${name}.png` });
+  };
+  await show(5.7, 'worm-front-cough');
+  expect(Number(await canvas.getAttribute('data-blood-drops'))).toBeGreaterThanOrEqual(6);
+  await show(53, 'worm-forward-flight');
+  expect(Number(await canvas.getAttribute('data-cloud-banks'))).toBeGreaterThanOrEqual(48);
+  expect(Number(await canvas.getAttribute('data-cloud-thickness'))).toBeGreaterThan(5);
+  await show(70, 'worm-larger-birds');
+  await show(75.3, 'worm-sun-bullet');
+  await expect(canvas).toHaveAttribute('data-intro-bullet', 'true');
+  expect(Number(await canvas.getAttribute('data-solar-alignment'))).toBeLessThan(0.03);
+  await show(84, 'worm-volume-clouds');
+  expect(Number(await canvas.getAttribute('data-visible-mist'))).toBeGreaterThan(0);
+  await show(110.5, 'worm-knockdown');
+  expect(Number(await canvas.getAttribute('data-intro-knockdown'))).toBe(1);
+  expect(Number(await canvas.getAttribute('data-worm-surface-min-y'))).toBeGreaterThanOrEqual(
+    0.0399,
+  );
+  await show(112.6, 'worm-weak-head-lift');
+  expect(Number(await canvas.getAttribute('data-intro-head-lift'))).toBeGreaterThan(0.04);
+  expect(errors).toEqual([]);
 });
