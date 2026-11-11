@@ -246,7 +246,7 @@ async function start() {
       const calibrating = baseline.value === null && !inactive;
       const cap = calibrating ? 0 : effectiveFrameCap(graphics.settings, baseline.value);
       if (pacer.shouldRender(now, cap)) {
-        if (intro) study.presentIntro(seconds);
+        if (intro) study.presentIntro(seconds, session.current);
         else study.present(session.current, walk, seconds, yaw, pitch);
         meter.record(now);
         if (calibrating) baseline.sample(now);

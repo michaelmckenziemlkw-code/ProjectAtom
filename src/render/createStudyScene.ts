@@ -1,3 +1,4 @@
+import { MOUTH } from '../core/birds.ts';
 import { createProceduralBird } from './models/proceduralBird.ts';
 import { sampleIntro } from '../core/cinematic.ts';
 import { createIntroStage } from './introStage.ts';
@@ -29,11 +30,11 @@ export async function createStudyScene(
     powerPreference: 'high-performance',
   });
   const scene = new Scene(engine);
-  scene.clearColor = new Color4(0.14, 0.18, 0.15, 1);
+  scene.clearColor = new Color4(0.16, 0.19, 0.2, 1);
   scene.ambientColor = new Color3(0.16, 0.18, 0.13);
   scene.fogMode = Scene.FOGMODE_EXP2;
   scene.fogDensity = 0.045;
-  scene.fogColor = new Color3(0.23, 0.28, 0.22);
+  scene.fogColor = new Color3(0.23, 0.27, 0.28);
   const camera = new ArcRotateCamera(
     'worm-camera',
     -Math.PI / 2,
@@ -45,13 +46,13 @@ export async function createStudyScene(
   camera.fov = 1.0;
   camera.minZ = 0.08; // Controls are supplied by Pointer Lock, never by drag/orbit inputs.
   const fill = new HemisphericLight('sky', new Vector3(-0.5, 1, -0.4), scene);
-  fill.intensity = 0.65;
-  fill.diffuse = new Color3(0.77, 0.86, 0.82);
-  fill.groundColor = new Color3(0.26, 0.2, 0.12);
+  fill.intensity = 0.75;
+  fill.diffuse = new Color3(0.8, 0.85, 0.9);
+  fill.groundColor = new Color3(0.26, 0.22, 0.18);
   const sun = new DirectionalLight('late-sun', new Vector3(-0.65, -1, 0.35), scene);
   sun.position.set(7, 10, -5);
   sun.intensity = 1.05;
-  sun.diffuse = new Color3(1, 0.87, 0.63);
+  sun.diffuse = new Color3(0.86, 0.88, 0.92);
   const environment = createEnvironment(scene);
   let actor;
   try {
@@ -115,22 +116,35 @@ export async function createStudyScene(
         low ? Math.max(1.5, devicePixelRatio) : Math.max(1, devicePixelRatio / 1.5),
       );
     },
-    presentIntro(seconds: number) {
+    condition(hp: number) {
+      worm.condition(hp);
+    },
+    presentIntro(seconds: number, observation: Observation) {
       const sample = sampleIntro(seconds);
-      actor.root.setEnabled(false);
-      crow.present(sample.crow, seconds, sample.crowVisible);
-      eagle.present(sample.eagle, seconds, sample.eagleVisible, true);
-      scene.fogDensity = 0.006;
+      actor.root.setEnabled(true);
+      actor.present({ ...observation, seconds });
+      crow.present(sample.crowPose, seconds, sample.crowVisible);
+      eagle.present(sample.eaglePose, seconds, sample.eagleVisible);
+      scene.fogDensity = 0.006 + 0.039 * sample.handoff;
       leaf.setEnabled(false);
       sun.diffuse.set(
-        0.64 + 0.36 * sample.handoff,
-        0.73 + 0.14 * sample.handoff,
-        0.87 - 0.24 * sample.handoff,
+        0.64 + 0.22 * sample.handoff,
+        0.73 + 0.15 * sample.handoff,
+        0.87 + 0.05 * sample.handoff,
       );
-      scene.clearColor.set(0.13, 0.17, 0.22, 1);
-      scene.fogColor.set(0.18, 0.23, 0.29);
+      scene.clearColor.set(
+        0.13 + 0.03 * sample.handoff,
+        0.17 + 0.02 * sample.handoff,
+        0.22 - 0.02 * sample.handoff,
+        1,
+      );
+      scene.fogColor.set(
+        0.18 + 0.05 * sample.handoff,
+        0.23 + 0.04 * sample.handoff,
+        0.29 - 0.01 * sample.handoff,
+      );
       sun.intensity = 0.75 + 0.3 * sample.handoff;
-      fill.intensity = 0.8;
+      fill.intensity = 0.8 - 0.05 * sample.handoff;
       environment.present('tap', seconds, false);
       worm.presentIntro(sample);
       introStage.present(seconds);
@@ -138,7 +152,20 @@ export async function createStudyScene(
       camera.setTarget(Vector3.FromArray(sample.target));
       camera.setPosition(Vector3.FromArray(sample.camera));
       scene.render();
+      const skinColor = scene.getMaterialByName(
+        'worm-skin',
+      ) as import('@babylonjs/core/Materials/standardMaterial').StandardMaterial;
+      canvas.dataset.wormSkin = skinColor.diffuseColor.toHexString();
+      canvas.dataset.beetleVisible = String(actor.root.isEnabled());
+      canvas.dataset.sceneFog = String(scene.fogDensity);
+      canvas.dataset.sunTint = sun.diffuse.toHexString();
+      const neck = scene.getTransformNodeByName('crow-neck')!;
+      const mouth = Vector3.TransformCoordinates(Vector3.FromArray(MOUTH), neck.getWorldMatrix());
+      const segment = scene.getMeshByName('worm-segment-3')!;
       Object.assign(canvas.dataset, {
+        gripError: sample.carried
+          ? String(Vector3.Distance(mouth, segment.getAbsolutePosition()))
+          : '',
         introShot: String(sample.shot),
         introPhase: sample.phase,
         introWormY: String(sample.worm[1]),
@@ -160,14 +187,14 @@ export async function createStudyScene(
       pitch: number,
     ) {
       actor.root.setEnabled(true);
-      crow.present([0, 0, 0], seconds, false);
-      eagle.present([0, 0, 0], seconds, false);
+      crow.hide();
+      eagle.hide();
       scene.fogDensity = 0.045;
-      scene.clearColor.set(0.14, 0.18, 0.15, 1);
-      scene.fogColor.set(0.23, 0.28, 0.22);
-      sun.diffuse.set(1, 0.87, 0.63);
+      scene.clearColor.set(0.16, 0.19, 0.2, 1);
+      scene.fogColor.set(0.23, 0.27, 0.28);
+      sun.diffuse.set(0.86, 0.88, 0.92);
       sun.intensity = 1.05;
-      fill.intensity = 0.65;
+      fill.intensity = 0.75;
       camera.fov = 1;
       introStage.present(null);
       const motion = beetleMotion(seconds, walk.beddingAt);
@@ -211,6 +238,13 @@ export async function createStudyScene(
       camera.beta = pitch;
       camera.radius = hit?.hit ? Math.max(0.65, hit.distance - 0.18) : 4.2;
       scene.render();
+      const skinColor = scene.getMaterialByName(
+        'worm-skin',
+      ) as import('@babylonjs/core/Materials/standardMaterial').StandardMaterial;
+      canvas.dataset.wormSkin = skinColor.diffuseColor.toHexString();
+      canvas.dataset.beetleVisible = String(actor.root.isEnabled());
+      canvas.dataset.sceneFog = String(scene.fogDensity);
+      canvas.dataset.sunTint = sun.diffuse.toHexString();
       const tail = walk.body.pose(10);
       Object.assign(canvas.dataset, {
         renderedCameraX: String(camera.position.x),

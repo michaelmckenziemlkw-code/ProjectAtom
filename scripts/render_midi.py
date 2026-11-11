@@ -1,6 +1,7 @@
 """Render SMF 0/1 MIDI to piano WAV using system libfluidsynth (no Python dependencies).
 Usage: python3 scripts/render_midi.py input.mid output.wav /path/to/piano.sf2
 Tempo maps, running status, velocity, note-offs and controllers (including pedal) are preserved.
+The FluidR3 piano uses a longer string decay; pedal release still damps the notes.
 """
 import ctypes as C
 import ctypes.util
@@ -101,8 +102,12 @@ def render(source, output, soundfont):
     pitch = fn('fluid_synth_pitch_bend', integer, ptr, integer, integer)
     write = fn('fluid_synth_write_s16', integer, ptr, integer, ptr, integer, integer, ptr, integer, integer)
     program = fn('fluid_synth_program_change', integer, ptr, integer, integer)
+    set_gen = fn('fluid_synth_set_gen', integer, ptr, integer, integer, C.c_float)
     for channel in range(16):
         program(synth, channel, 0)
+        # Add 900 timecents (~1.68x) to string decay, not release or reverb.
+        # CC64 therefore keeps the string ringing; pedal-up still engages the damper.
+        set_gen(synth, channel, 36, 900.0)
     duration = info['midiDuration'] + 3
     total = round(duration * 44100)
     buffer = (C.c_int16 * (4096 * 2))()
@@ -132,7 +137,7 @@ def render(source, output, soundfont):
         until(total)
     fn('delete_fluid_synth', None, ptr)(synth)
     fn('delete_fluid_settings', None, ptr)(settings)
-    info.update(audioDuration=duration, peak=peak / 32768, instrument='TimGM6mb Acoustic Grand Piano',
+    info.update(audioDuration=duration, peak=peak / 32768, instrument='FluidR3 GM Yamaha Grand Piano', decayTimecents=900,
                 sourceSha256=hashlib.sha256(Path(source).read_bytes()).hexdigest())
     print(json.dumps(info, indent=2))
 

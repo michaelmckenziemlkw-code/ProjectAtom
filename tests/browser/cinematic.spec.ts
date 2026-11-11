@@ -32,9 +32,12 @@ test('worm prologue renders shots with sound, hands off control, and can replay/
   await expect(canvas).toHaveAttribute('data-intro-shot', '1', { timeout: 20000 });
   expect(Number(await canvas.getAttribute('data-player-z'))).toBe(-5.2);
   await page.keyboard.up('w');
+  const skin = await canvas.getAttribute('data-worm-skin');
+  await expect(canvas).toHaveAttribute('data-beetle-visible', 'true');
   await page.screenshot({ path: 'docs/images/worm-prologue.png' });
   await expect(canvas).toHaveAttribute('data-intro-phase', 'ascent', { timeout: 40000 });
   await expect(canvas).toHaveAttribute('data-intro-carried', 'true');
+  expect(Number(await canvas.getAttribute('data-grip-error'))).toBeLessThan(0.001);
   await page.screenshot({ path: 'docs/images/worm-crow.png' });
   await expect(canvas).toHaveAttribute('data-intro-phase', 'attack', { timeout: 60000 });
   await expect(canvas).toHaveAttribute('data-intro-eagle', 'true');
@@ -44,10 +47,13 @@ test('worm prologue renders shots with sound, hands off control, and can replay/
   await page.waitForTimeout(5000);
   expect(Number(await canvas.getAttribute('data-intro-worm-y'))).toBeLessThan(height);
   await page.screenshot({ path: 'docs/images/worm-fall.png' });
-  await expect(canvas).toHaveAttribute('data-intro-phase', 'aftermath', { timeout: 25000 });
+  await expect(canvas).toHaveAttribute('data-intro-phase', 'aftermath', { timeout: 40000 });
   await expect(canvas).toHaveAttribute('data-intro-worm-y', '0');
   await expect(canvas).toHaveAttribute('data-cinematic', 'false', { timeout: 35000 });
   await expect(page.locator('#cinematic-hud')).toBeHidden();
+  await expect(canvas).toHaveAttribute('data-worm-skin', skin!);
+  await expect(canvas).toHaveAttribute('data-beetle-visible', 'true');
+  expect(Number(await canvas.getAttribute('data-scene-fog'))).toBeCloseTo(0.045, 5);
   await page.keyboard.down('w');
   await expect
     .poll(async () => Number(await canvas.getAttribute('data-player-z')))
@@ -94,4 +100,38 @@ test('prologue survives unavailable audio and removes its overlay on context los
   await expect(page.locator('#failure')).toBeVisible();
   await expect(page.locator('#cinematic-hud')).toBeHidden();
   expect(errors).toEqual([]);
+});
+
+test('beak rig and appearance stay continuous through the cinematic handoff', async ({ page }) => {
+  // Advance only visual time here; the real-time scenario above checks the full score.
+  await page.clock.install();
+  await page.goto('/?seed=12');
+  await page.locator('#enter-cinematic').click({ timeout: 45000 });
+  const canvas = page.locator('#world');
+  await expect(canvas).toHaveAttribute('data-cinematic', 'true');
+  let time = Number(await canvas.getAttribute('data-animation-time'));
+  await page.clock.fastForward((70 - time) * 1000);
+  await expect(canvas).toHaveAttribute('data-intro-phase', 'attack');
+  expect(Number(await canvas.getAttribute('data-grip-error'))).toBeLessThan(0.001);
+  await page.screenshot({ path: 'docs/images/worm-eagle.png' });
+  time = Number(await canvas.getAttribute('data-animation-time'));
+  await page.clock.fastForward((133.5 - time) * 1000);
+  await expect(canvas).toHaveAttribute('data-intro-phase', 'aftermath');
+  const skin = await canvas.getAttribute('data-worm-skin');
+  const fog = Number(await canvas.getAttribute('data-scene-fog'));
+  const tint = await canvas.getAttribute('data-sun-tint');
+  await expect(canvas).toHaveAttribute('data-beetle-visible', 'true');
+  await page.clock.fastForward(1500);
+  await expect(canvas).toHaveAttribute('data-cinematic', 'false');
+  await expect(canvas).toHaveAttribute('data-worm-skin', skin!);
+  await expect(canvas).toHaveAttribute('data-beetle-visible', 'true');
+  expect(Math.abs(Number(await canvas.getAttribute('data-scene-fog')) - fog)).toBeLessThan(0.001);
+  const afterTint = await canvas.getAttribute('data-sun-tint');
+  for (const offset of [1, 3, 5])
+    expect(
+      Math.abs(
+        parseInt(tint!.slice(offset, offset + 2), 16) -
+          parseInt(afterTint!.slice(offset, offset + 2), 16),
+      ),
+    ).toBeLessThanOrEqual(3);
 });

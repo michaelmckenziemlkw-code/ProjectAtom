@@ -13,12 +13,12 @@ export function createProceduralBeetle(scene: Scene): BeetleActor {
   const root = new TransformNode('beetle', scene);
   const body = new TransformNode('beetle-body', scene);
   body.parent = root;
-  const shell = material(scene, 'shell-jade', '#284e46', 90);
+  const shell = material(scene, 'shell-jade', '#34454c', 90);
   shell.specularColor = new Color3(0.28, 0.36, 0.22);
-  const edge = material(scene, 'shell-edge', '#6f8960', 45);
-  const belly = material(scene, 'belly-ochre', '#9e743c', 20);
+  const edge = material(scene, 'shell-edge', '#7a837c', 45);
+  const belly = material(scene, 'belly-ochre', '#92744f', 20);
   const black = material(scene, 'eyes', '#0b1917', 110);
-  const legMat = material(scene, 'jointed-legs', '#354438', 35);
+  const legMat = material(scene, 'jointed-legs', '#3b4443', 35);
   const ivory = material(scene, 'belly-ivory', '#ffdda1', 20);
   ivory.emissiveColor = new Color3(0.08, 0.035, 0.005);
 

@@ -1,3 +1,5 @@
+import { add, rotate, GRIP_SEGMENT, CROW_SCALE, EAGLE_SCALE } from './birds.ts';
+import { wormAppearance } from './wormAppearance.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -8,7 +10,7 @@ import {
   IMPACT_TIME,
 } from './cinematic.ts';
 
-test('MIDI-duration prologue has ordered capture, ascent, attack, 20-second fall and aftermath', () => {
+test('MIDI-duration prologue has ordered capture, ascent, attack, 35-second fall and aftermath', () => {
   assert.ok(INTRO_DURATION > 134 && INTRO_DURATION < 135);
   assert.equal(sampleIntro(0).fade, 1);
   assert.equal(sampleIntro(2).fade, 0);
@@ -17,22 +19,24 @@ test('MIDI-duration prologue has ordered capture, ascent, attack, 20-second fall
     [20, 'approach'],
     [31, 'capture'],
     [45, 'ascent'],
-    [70, 'flight'],
-    [85, 'attack'],
+    [60, 'flight'],
+    [70, 'attack'],
     [100, 'fall'],
     [120, 'aftermath'],
   ] as const)
     assert.equal(sampleIntro(time).phase, phase);
-  assert.equal(IMPACT_TIME - RELEASE_TIME, 20);
+  assert.equal(IMPACT_TIME - RELEASE_TIME, 35);
   assert.equal(sampleIntro(31.99).carried, false);
   assert.equal(sampleIntro(32).carried, true);
-  for (const time of [32, 40, 65, 89.99]) {
-    const sample = sampleIntro(time);
-    assert.ok(Math.abs(sample.worm[0] - sample.crow[0]) < 1e-8);
-    assert.equal(sample.worm[1], sample.crow[1] - 0.7);
+  for (const time of [32, 40, 60, 74.99]) {
+    const s = sampleIntro(time);
+    const point = add(s.worm, rotate(GRIP_SEGMENT, s.rotation));
+    assert.ok(Math.hypot(...point.map((v, i) => v - s.grip[i]!)) < 1e-8);
   }
-  assert.ok(sampleIntro(89.999).worm[1] - sampleIntro(90).worm[1] < 0.01);
-  assert.ok(sampleIntro(85).eagleVisible);
+  const before = sampleIntro(RELEASE_TIME - 0.001),
+    after = sampleIntro(RELEASE_TIME);
+  assert.ok(Math.hypot(...before.worm.map((v, i) => v - after.worm[i]!)) < 0.02);
+  assert.ok(sampleIntro(70).eagleVisible);
 });
 
 test('fall is monotonic, rotates slowly and lands in the same puddle without rebound', () => {
@@ -45,7 +49,7 @@ test('fall is monotonic, rotates slowly and lands in the same puddle without reb
     previous = sample;
   }
   assert.equal(sampleIntro(105).cough, 0);
-  assert.equal(sampleIntro(INTRO_DURATION).rise, 0);
+  assert.equal(sampleIntro(INTRO_DURATION).rise, 1);
   assert.equal(sampleIntro(INTRO_DURATION).done, true);
   assert.deepEqual(sampleIntro(INTRO_DURATION).target, [0, 0.55, -5.2]);
 });
@@ -67,7 +71,7 @@ test('both birds fit the attack camera and the fall camera tracks the rotating b
   const dot = (a: number[], b: number[]) => a.reduce((sum, v, i) => sum + v * b[i]!, 0);
   const sub = (a: number[], b: number[]) => a.map((v, i) => v - b[i]!);
   const norm = (a: number[]) => a.map((v) => v / Math.hypot(...a));
-  for (let time = 82; time < 90; time += 0.1) {
+  for (let time = 67; time < 75; time += 0.1) {
     const s = sampleIntro(time),
       forward = norm(sub(s.target, s.camera));
     const right = norm([forward[2]!, 0, -forward[0]!]);
@@ -84,9 +88,38 @@ test('both birds fit the attack camera and the fall camera tracks the rotating b
       assert.ok(Math.abs(dot(relative, up)) < depth * Math.tan(0.75 / 2) * 0.8);
     }
   }
-  for (let time = 90; time < 110; time += 0.1) {
+  for (let time = 75; time < 110; time += 0.1) {
     const s = sampleIntro(time);
     assert.ok(Math.hypot(...sub(s.target, s.worm)) < 0.8);
     assert.ok(Math.hypot(...sub(s.camera, s.target)) > 5);
   }
+});
+
+test('birds are substantially larger; capture closes the beak at the puddle and wings articulate', () => {
+  assert.equal(CROW_SCALE, 3.5);
+  assert.ok(EAGLE_SCALE > CROW_SCALE * 1.5);
+  const capture = sampleIntro(32);
+  assert.ok(Math.hypot(...capture.worm.map((v, i) => v - [0, 0, -5.2][i]!)) < 1e-8);
+  assert.ok(sampleIntro(31).crowPose.open > 0.9);
+  assert.equal(capture.crowPose.open, 0);
+  assert.ok(sampleIntro(74.99).crowPose.open > 0.6);
+  const a = sampleIntro(45).crowPose,
+    b = sampleIntro(45.36).crowPose;
+  assert.ok(Math.abs(a.flap - b.flap) > 0.5);
+  assert.notEqual(a.fold, b.fold);
+});
+
+test('visual health parameter is finite, clamped and preserves a moderately pale default', () => {
+  assert.deepEqual(wormAppearance(-1), wormAppearance(0));
+  assert.deepEqual(wormAppearance(2), wormAppearance(1));
+  assert.deepEqual(wormAppearance(NaN), wormAppearance(0));
+  const sick = wormAppearance(0).skin,
+    normal = wormAppearance().skin,
+    healthy = wormAppearance(1).skin;
+  for (let i = 0; i < 3; i++)
+    assert.ok(
+      normal[i]! >= Math.min(sick[i]!, healthy[i]!) &&
+        normal[i]! <= Math.max(sick[i]!, healthy[i]!),
+    );
+  assert.ok(normal[0] < 0.8); // Avoid the previous near-white cinematic skin.
 });
