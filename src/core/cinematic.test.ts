@@ -1,3 +1,4 @@
+import { introSegment } from './wormPose.ts';
 import { add, rotate, GRIP_SEGMENT, CROW_SCALE, EAGLE_SCALE } from './birds.ts';
 import { wormAppearance } from './wormAppearance.ts';
 import test from 'node:test';
@@ -8,6 +9,11 @@ import {
   COUGH_TIMES,
   RELEASE_TIME,
   IMPACT_TIME,
+  FALL_REFERENCE_SPEED,
+  FALL_START_SPEED,
+  FALL_END_SPEED,
+  FALL_HEIGHT,
+  SKY_LIFT,
 } from './cinematic.ts';
 
 test('MIDI-duration prologue has ordered capture, ascent, attack, 35-second fall and aftermath', () => {
@@ -122,4 +128,55 @@ test('visual health parameter is finite, clamped and preserves a moderately pale
         normal[i]! <= Math.max(sick[i]!, healthy[i]!),
     );
   assert.ok(normal[0] < 0.8); // Avoid the previous near-white cinematic skin.
+});
+
+test('artistic altitude gives a 3x to 6x accelerating fall while keeping the 35-second landing', () => {
+  assert.ok(SKY_LIFT > 100);
+  assert.equal(FALL_START_SPEED / FALL_REFERENCE_SPEED, 3);
+  assert.equal(FALL_END_SPEED / FALL_REFERENCE_SPEED, 6);
+  assert.equal(sampleIntro(RELEASE_TIME).worm[1], FALL_HEIGHT);
+  let previousSpeed = 0;
+  for (let t = RELEASE_TIME; t < IMPACT_TIME - 0.01; t += 0.1) {
+    const sample = sampleIntro(t);
+    const measured = (sample.worm[1] - sampleIntro(t + 0.01).worm[1]) / 0.01;
+    assert.ok(measured >= previousSpeed);
+    assert.ok(Math.abs(measured - sample.fallSpeed) < 0.01);
+    previousSpeed = measured;
+  }
+  assert.equal(sampleIntro(IMPACT_TIME).worm[1], 0);
+  assert.ok(sampleIntro(66.99).crow[1] < 60);
+  assert.ok(sampleIntro(67).crow[1] > 180);
+});
+
+test('two side closeups show the carried worm and its local tail flexes independently of tumble', () => {
+  for (const t of [41, 60]) {
+    const s = sampleIntro(t);
+    assert.ok(s.closeup && s.carried);
+    const distance = Math.hypot(...s.camera.map((v, i) => v - s.target[i]!));
+    assert.ok(distance > 2 && distance < 3);
+  }
+  assert.equal(sampleIntro(46).closeup, false);
+  const a = introSegment(sampleIntro(80), 10),
+    b = introSegment(sampleIntro(84), 10);
+  assert.ok(Math.hypot(...a.map((v, i) => v - b[i]!)) > 0.02);
+  for (const time of [78, 83, 91, 103])
+    for (let i = 1; i < 11; i++) {
+      const head = introSegment(sampleIntro(time), i - 1),
+        tail = introSegment(sampleIntro(time), i);
+      const distance = Math.hypot(...head.map((v, j) => v - tail[j]!));
+      assert.ok(distance > 0.12 && distance < 0.17);
+    }
+});
+
+test('long recovery converges continuously to the exact gameplay idle before handoff', () => {
+  assert.ok(sampleIntro(124).rise > 0 && sampleIntro(124).rise < 0.5);
+  const end = sampleIntro(INTRO_DURATION);
+  for (let i = 0; i < 11; i++) {
+    const pose = introSegment(end, i);
+    assert.deepEqual(pose, [0, 0.22 + Math.sin(end.time * 1.5) * 0.005, -i * 0.14]);
+    const near = introSegment(sampleIntro(INTRO_DURATION - 0.02), i);
+    assert.ok(Math.hypot(...pose.map((v, j) => v - near[j]!)) < 0.001);
+  }
+  const skin = wormAppearance().skin;
+  assert.ok(skin[0] - skin[1] > 0.1 && skin[1] > skin[2]);
 });

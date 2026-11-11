@@ -156,6 +156,16 @@ export async function createStudyScene(
         'worm-skin',
       ) as import('@babylonjs/core/Materials/standardMaterial').StandardMaterial;
       canvas.dataset.wormSkin = skinColor.diffuseColor.toHexString();
+      canvas.dataset.eyeAnchor = String(
+        Vector3.Distance(
+          scene.getMeshByName('worm-eye')!.getAbsolutePosition(),
+          scene.getMeshByName('worm-segment-0')!.getAbsolutePosition(),
+        ),
+      );
+      canvas.dataset.localWormTail = scene
+        .getMeshByName('worm-segment-10')!
+        .position.asArray()
+        .join(',');
       canvas.dataset.beetleVisible = String(actor.root.isEnabled());
       canvas.dataset.sceneFog = String(scene.fogDensity);
       canvas.dataset.sunTint = sun.diffuse.toHexString();
@@ -168,6 +178,9 @@ export async function createStudyScene(
           : '',
         introShot: String(sample.shot),
         introPhase: sample.phase,
+        introCloseup: String(sample.closeup),
+        introFallSpeed: String(sample.fallSpeed),
+        introRise: String(sample.rise),
         introWormY: String(sample.worm[1]),
         introRotation: sample.rotation.join(','),
         introCarried: String(sample.carried),
@@ -242,6 +255,16 @@ export async function createStudyScene(
         'worm-skin',
       ) as import('@babylonjs/core/Materials/standardMaterial').StandardMaterial;
       canvas.dataset.wormSkin = skinColor.diffuseColor.toHexString();
+      canvas.dataset.eyeAnchor = String(
+        Vector3.Distance(
+          scene.getMeshByName('worm-eye')!.getAbsolutePosition(),
+          scene.getMeshByName('worm-segment-0')!.getAbsolutePosition(),
+        ),
+      );
+      canvas.dataset.localWormTail = scene
+        .getMeshByName('worm-segment-10')!
+        .position.asArray()
+        .join(',');
       canvas.dataset.beetleVisible = String(actor.root.isEnabled());
       canvas.dataset.sceneFog = String(scene.fogDensity);
       canvas.dataset.sunTint = sun.diffuse.toHexString();

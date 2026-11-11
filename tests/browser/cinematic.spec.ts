@@ -115,6 +115,12 @@ test('beak rig and appearance stay continuous through the cinematic handoff', as
   expect(Number(await canvas.getAttribute('data-grip-error'))).toBeLessThan(0.001);
   await page.screenshot({ path: 'docs/images/worm-eagle.png' });
   time = Number(await canvas.getAttribute('data-animation-time'));
+  await page.clock.fastForward((85 - time) * 1000);
+  await expect(canvas).toHaveAttribute('data-intro-phase', 'fall');
+  const tail = await canvas.getAttribute('data-local-worm-tail');
+  await page.clock.fastForward(3000);
+  expect(await canvas.getAttribute('data-local-worm-tail')).not.toBe(tail);
+  time = Number(await canvas.getAttribute('data-animation-time'));
   await page.clock.fastForward((133.5 - time) * 1000);
   await expect(canvas).toHaveAttribute('data-intro-phase', 'aftermath');
   const skin = await canvas.getAttribute('data-worm-skin');
@@ -134,4 +140,32 @@ test('beak rig and appearance stay continuous through the cinematic handoff', as
           parseInt(afterTint!.slice(offset, offset + 2), 16),
       ),
     ).toBeLessThanOrEqual(3);
+});
+
+test('carried closeups keep the face in frame before the high-altitude accelerating fall', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto('/?seed=12');
+  await page.locator('#enter-cinematic').click({ timeout: 45000 });
+  const canvas = page.locator('#world');
+  for (const [target, file] of [
+    [41, 'worm-beak-closeup'],
+    [60, 'worm-beak-closeup-side'],
+  ] as const) {
+    const time = Number(await canvas.getAttribute('data-animation-time'));
+    await page.clock.fastForward((target - time) * 1000);
+    await expect(canvas).toHaveAttribute('data-intro-closeup', 'true');
+    expect(Number(await canvas.getAttribute('data-grip-error'))).toBeLessThan(0.001);
+    expect(Number(await canvas.getAttribute('data-eye-anchor'))).toBeLessThan(0.19);
+    await page.screenshot({ path: `docs/images/${file}.png` });
+  }
+  let time = Number(await canvas.getAttribute('data-animation-time'));
+  await page.clock.fastForward((77 - time) * 1000);
+  expect(Number(await canvas.getAttribute('data-intro-worm-y'))).toBeGreaterThan(180);
+  const speed = Number(await canvas.getAttribute('data-intro-fall-speed'));
+  time = Number(await canvas.getAttribute('data-animation-time'));
+  await page.clock.fastForward((104 - time) * 1000);
+  expect(Number(await canvas.getAttribute('data-intro-fall-speed'))).toBeGreaterThan(speed * 1.5);
+  await page.screenshot({ path: 'docs/images/worm-fast-fall.png' });
 });

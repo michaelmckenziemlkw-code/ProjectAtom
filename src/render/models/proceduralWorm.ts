@@ -1,3 +1,4 @@
+import { introSegment, WORM_RADIUS } from '../../core/wormPose.ts';
 import { wormAppearance } from '../../core/wormAppearance.ts';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -22,7 +23,7 @@ export function createProceduralWorm(scene: Scene) {
   const head = new TransformNode('worm-head', scene);
   head.parent = root;
   const segments = Array.from({ length: WORM_SEGMENTS }, (_, i) => {
-    const radius = 0.235 * (1 - i * 0.045);
+    const radius = WORM_RADIUS * (1 - i * 0.045);
     return ellipsoid(
       scene,
       `worm-segment-${i}`,
@@ -37,7 +38,7 @@ export function createProceduralWorm(scene: Scene) {
     ellipsoid(
       scene,
       'worm-eye',
-      new Vector3(side * 0.125, 0.31, 0.145),
+      new Vector3(side * 0.078, 0.055, 0.15),
       new Vector3(0.041, 0.043, 0.033),
       black,
       head,
@@ -45,7 +46,7 @@ export function createProceduralWorm(scene: Scene) {
     const lid = ellipsoid(
       scene,
       'worm-tired-lid',
-      new Vector3(side * 0.125, 0.34, 0.163),
+      new Vector3(side * 0.078, 0.083, 0.164),
       new Vector3(0.044, 0.024, 0.025),
       skin,
       head,
@@ -55,11 +56,15 @@ export function createProceduralWorm(scene: Scene) {
     ellipsoid(
       scene,
       'worm-eye-shine',
-      new Vector3(side * 0.128, 0.328, 0.171),
+      new Vector3(side * 0.08, 0.07, 0.176),
       new Vector3(0.012, 0.012, 0.008),
       pearl,
       head,
     );
+  }
+  function syncHead() {
+    head.position.copyFrom(segments[0]!.position);
+    head.rotation.copyFrom(segments[0]!.rotation);
   }
   return {
     condition,
@@ -71,36 +76,28 @@ export function createProceduralWorm(scene: Scene) {
         sample.impact >= 0 ? Math.sin(Math.min(1, sample.impact * 3) * Math.PI) * 0.15 : 0;
       root.scaling.set(1 + compression * 0.3, 1 - compression, 1);
       const weakness = 1 - sample.rise;
-      head.rotation.set(0, 0, -0.5 * weakness + sample.cough * 0.35);
-      head.position.y = -0.07 * weakness + sample.cough * 0.08;
       segments.forEach((segment, i) => {
-        segment.position.set(
-          sample.carried ? 0 : Math.sin(i * 0.42) * 0.17 * weakness,
-          (sample.carried
-            ? 0.16 - Math.abs(i - 3) * 0.04
-            : sample.phase === 'aftermath'
-              ? 0.12 + 0.1 * sample.rise
-              : 0.16 + 0.06 * sample.rise) +
-            Math.sin(sample.time * 1.8 - i * 0.2) * 0.007 +
-            sample.cough * Math.exp(-i * 0.35) * 0.08,
-          -i * 0.14,
-        );
-        if (sample.carried && i === 3) segment.position.y = 0.16;
+        const pose = introSegment(sample, i);
+        segment.position.copyFromFloats(...pose);
+        const forward = introSegment(sample, i > 0 ? i - 1 : 0);
+        const back = introSegment(sample, i > 0 ? i : 1);
+        const dx = forward[0] - back[0],
+          dy = forward[1] - back[1],
+          dz = forward[2] - back[2];
         segment.rotation.set(
-          0,
-          sample.carried ? 0 : Math.cos(i * 0.42) * 0.25 * weakness,
-          -0.5 * weakness,
+          -Math.atan2(dy, Math.hypot(dx, dz)),
+          Math.atan2(dx, dz),
+          sample.falling ? 0 : -0.5 * weakness,
         );
         segment.scaling.z = 0.19;
       });
+      syncHead();
     },
     present(walk: WalkSession, seconds: number) {
       lids.forEach((lid) => lid.setEnabled(true));
       root.position.set(walk.x, 0, walk.z);
       root.rotation.setAll(0);
       root.scaling.setAll(1);
-      head.position.set(0, 0, 0);
-      head.rotation.set(0, walk.heading, 0);
       segments.forEach((segment, i) => {
         const pose = walk.body.pose(i);
         const heading = i === 0 ? walk.heading : pose.heading;
@@ -112,6 +109,7 @@ export function createProceduralWorm(scene: Scene) {
           0.22 + Math.sin(walk.distance * 12 - i * 0.65) * 0.018 + Math.sin(seconds * 1.5) * 0.005;
         segment.scaling.z = 0.19 * (1 + Math.sin(walk.distance * 12 - i * 0.65) * 0.1);
       });
+      syncHead();
     },
     dispose() {
       root.dispose(false, true);

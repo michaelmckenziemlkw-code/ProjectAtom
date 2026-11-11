@@ -72,19 +72,30 @@ export function createIntroStage(scene: Scene) {
   cloudMat.emissiveColor.set(0.35, 0.42, 0.5);
   cloudMat.alpha = 0.35;
   cloudMat.disableDepthWrite = true;
-  const clouds = Array.from({ length: 14 }, (_, i) =>
+  const clouds = Array.from({ length: 26 }, (_, i) =>
     ellipsoid(
       scene,
       'intro-cloud',
       new Vector3(
         Math.cos(i * 2.4) * (15 + (i % 3) * 7),
-        25 + i * 3,
+        16 + i * 10,
         -5 + Math.sin(i * 2.4) * (20 + (i % 4) * 5),
       ),
       new Vector3(4 + (i % 3), 1.4, 2.7),
       cloudMat,
     ),
   );
+  // Nearer layers behind the falling actor make acceleration readable between distant clouds.
+  for (let i = 0; i < 13; i++)
+    clouds.push(
+      ellipsoid(
+        scene,
+        'intro-cloud-wisp',
+        new Vector3(-5 + Math.sin(i * 0.9) * 3, 20 + i * 16, -15 - (i % 3) * 2),
+        new Vector3(3 + (i % 2), 0.32, 1.3),
+        cloudMat,
+      ),
+    );
   const rippleMat = material(scene, 'impact-ripple', '#7f9aa7', 80);
   const ripples = [0, 1, 2].map((i) => {
     const ring = MeshBuilder.CreateTorus(

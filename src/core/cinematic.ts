@@ -74,7 +74,14 @@ function carriedWorm(t: number) {
     grip,
   };
 }
-const release = carriedWorm(RELEASE_TIME);
+const baseRelease = carriedWorm(RELEASE_TIME);
+const FALL_SECONDS = IMPACT_TIME - RELEASE_TIME;
+export const FALL_REFERENCE_SPEED = baseRelease.position[1] / FALL_SECONDS;
+export const FALL_START_SPEED = FALL_REFERENCE_SPEED * 3;
+export const FALL_END_SPEED = FALL_REFERENCE_SPEED * 6;
+export const FALL_HEIGHT = (FALL_START_SPEED + FALL_END_SPEED) * 0.5 * FALL_SECONDS;
+export const SKY_LIFT = FALL_HEIGHT - baseRelease.position[1];
+const release = { ...baseRelease, position: add(baseRelease.position, [0, SKY_LIFT, 0]) };
 
 export function sampleIntro(seconds: number) {
   const time = Math.max(0, Math.min(INTRO_DURATION, seconds));
@@ -94,21 +101,32 @@ export function sampleIntro(seconds: number) {
                 : time < IMPACT_TIME
                   ? 'fall'
                   : 'aftermath';
-  const crowPoseSample = crowPose(time),
-    crow = crowPoseSample.position;
+  // A cinematic altitude cheat at the attack cut: birds, worm and camera move together.
+  const altitude: Point = time >= 67 ? [0, SKY_LIFT, 0] : [0, 0, 0];
+  const crowPoseSample = crowPose(time);
+  crowPoseSample.position = add(crowPoseSample.position, altitude);
+  const crow = crowPoseSample.position;
   const eaglePose = flightRig(time, eaglePath(time), velocity(eaglePath, time), true);
+  eaglePose.position = add(eaglePose.position, altitude);
   const eagle = eaglePose.position;
   eaglePose.rotation[1] = -0.73 + 1.46 * smooth((time - 74) / 5);
   const carried = time >= 32 && time < RELEASE_TIME,
     falling = phase === 'fall';
   const fall = clamp((time - RELEASE_TIME) / (IMPACT_TIME - RELEASE_TIME));
   const attachment = carriedWorm(time);
+  attachment.position = add(attachment.position, altitude);
+  attachment.grip = add(attachment.grip, altitude);
   const worm: Point = carried
     ? attachment.position
     : falling
       ? [
           release.position[0] * (1 - smooth(fall)) + Math.sin(fall * Math.PI * 2) * 0.6,
-          release.position[1] * (1 - fall * fall),
+          Math.max(
+            0,
+            FALL_HEIGHT -
+              FALL_SECONDS *
+                (FALL_START_SPEED * fall + 0.5 * (FALL_END_SPEED - FALL_START_SPEED) * fall * fall),
+          ),
           release.position[2] +
             (-5.2 - release.position[2]) * smooth(fall) +
             Math.sin(fall * Math.PI) * 0.5,
@@ -125,8 +143,10 @@ export function sampleIntro(seconds: number) {
     const dt = time - cue;
     return sum + (dt >= 0 && dt < 0.65 ? Math.sin((dt / 0.65) * Math.PI) * Math.exp(-dt * 3) : 0);
   }, 0);
-  const shot =
-    time < 10
+  const closeup = (time >= 40 && time < 44) || (time >= 58 && time < 63);
+  const shot = closeup
+    ? 9
+    : time < 10
       ? 0
       : time < 18
         ? 1
@@ -144,7 +164,18 @@ export function sampleIntro(seconds: number) {
                     ? 7
                     : 8;
   let camera: Point, target: Point;
-  if (shot === 0) {
+  if (shot === 9) {
+    const side = time < 44 ? 1 : -1;
+    const push = smooth((time - (side === 1 ? 40 : 58)) / 5);
+    target = add(worm, rotate([0, 0.2, -0.02], rotation));
+    camera = add(
+      target,
+      rotate(
+        [side * (1.8 - 0.15 * push), 0.55, 1.5 - 0.1 * push],
+        [0, crowPoseSample.rotation[1], 0],
+      ),
+    );
+  } else if (shot === 0) {
     camera = mix([-2.8, 2.7, -7.3], [-1.25, 1.15, -6.6], smooth(time / 10));
     target = [0, 0.22, -5.6];
   } else if (shot === 1) {
@@ -171,6 +202,8 @@ export function sampleIntro(seconds: number) {
     time,
     phase,
     shot,
+    closeup,
+    fallSpeed: falling ? FALL_START_SPEED + (FALL_END_SPEED - FALL_START_SPEED) * fall : 0,
     done: seconds >= INTRO_DURATION,
     cough,
     camera,
@@ -187,7 +220,7 @@ export function sampleIntro(seconds: number) {
     falling,
     grip: attachment.grip,
     impact: time >= IMPACT_TIME && time < IMPACT_TIME + 1.4 ? (time - IMPACT_TIME) / 1.4 : -1,
-    rise: smooth((time - 131) / (INTRO_DURATION - 131)),
+    rise: smooth((time - 120) / (INTRO_DURATION - 120)),
     handoff: smooth((time - 124) / (INTRO_DURATION - 124)),
     fade: 1 - smooth(time / 1.5),
   };
