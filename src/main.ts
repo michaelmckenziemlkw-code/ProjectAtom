@@ -1,4 +1,4 @@
-import { ActiveClock, FramePacer, FrameMeter } from './core/timing.ts';
+import { ActiveClock, FramePacer, FrameMeter, UncappedFpsSampler } from './core/timing.ts';
 import { effectiveFrameCap } from './core/graphics.ts';
 import { mountGraphicsPanel } from './ui/graphicsPanel.ts';
 import './style.css';
@@ -21,6 +21,7 @@ let entered = false;
 const clock = new ActiveClock(performance.now());
 const pacer = new FramePacer();
 const meter = new FrameMeter();
+const baseline = new UncappedFpsSampler();
 const graphics = mountGraphicsPanel(view.element('graphics-settings'));
 let lastRender = performance.now();
 const updateClock = () =>
@@ -55,15 +56,23 @@ async function start() {
       const paused = session.state.paused || document.hidden || !entered;
       audio.present(session.current.gesture, seconds, paused);
       view.canvas.dataset.animationTime = String(seconds);
-      if (pacer.shouldRender(now, effectiveFrameCap(graphics.settings))) {
+      if (paused) baseline.interrupt();
+      const calibrating = baseline.value === null && !paused;
+      const cap = calibrating ? 0 : effectiveFrameCap(graphics.settings, baseline.value);
+      if (pacer.shouldRender(now, cap)) {
         const rendered = study.present({ ...session.current, seconds }, (now - lastRender) / 1000);
         lastRender = now;
-        if (rendered) meter.record(now);
+        if (rendered) {
+          meter.record(now);
+          if (calibrating) baseline.sample(now);
+        }
       }
       view.canvas.dataset.renderCount = String(meter.count);
       const fps = meter.fps(now);
       view.element('fps').textContent = paused ? 'Пауза' : `Отрисовка: ${fps} FPS`;
-      graphics.updateMetrics(paused, fps);
+      view.canvas.dataset.baselineFps = baseline.value === null ? '' : String(baseline.value);
+      view.canvas.dataset.targetFps = String(cap);
+      graphics.updateMetrics(paused, fps, baseline.value);
     });
   } catch (error) {
     console.error(error);
@@ -86,6 +95,7 @@ for (const button of document.querySelectorAll<HTMLButtonElement>('[data-observa
   });
 view.element('pause').addEventListener('click', () => {
   session.state.paused = !session.state.paused;
+  if (session.state.paused) baseline.interrupt();
   updateClock();
   view.element('pause').textContent = session.state.paused ? 'Продолжить' : 'Пауза';
   view.element('pause').setAttribute('aria-pressed', String(session.state.paused));
@@ -93,11 +103,15 @@ view.element('pause').addEventListener('click', () => {
 });
 view.element('inspect').addEventListener('click', () => study?.focus(true));
 view.element('wide').addEventListener('click', () => study?.focus(false));
-view
-  .element<HTMLInputElement>('low-quality')
-  .addEventListener('change', (event) =>
-    study?.quality((event.target as HTMLInputElement).checked),
-  );
+view.element('graphics-settings').addEventListener('video-quality-change', (event) => {
+  study?.quality((event as CustomEvent<boolean>).detail);
+  baseline.reset();
+});
+view.element<HTMLInputElement>('volume').addEventListener('input', (event) => {
+  const value = Number((event.target as HTMLInputElement).value);
+  audio.setVolume(value / 100);
+  view.element('volume-value').textContent = `${value}%`;
+});
 view.element('audio').addEventListener('click', async () => {
   try {
     const enabled = await audio.toggle();
@@ -113,6 +127,7 @@ view.canvas.addEventListener('render-failure', (event) => {
   view.fail((event as CustomEvent<string>).detail);
 });
 document.addEventListener('visibilitychange', () => {
+  baseline.interrupt();
   updateClock();
   if (document.hidden) audio.silence();
 });

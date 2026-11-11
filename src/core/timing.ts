@@ -47,3 +47,31 @@ export class FrameMeter {
     return this.samples.length;
   }
 }
+
+/** Samples only actual, unpaced renders. A completed estimate never feeds on capped FPS. */
+export class UncappedFpsSampler {
+  value: number | null = null;
+  private first: number | null = null;
+  private intervals = 0;
+  sample(now: number) {
+    if (this.value !== null) return;
+    if (this.first === null) {
+      this.first = now;
+      return;
+    }
+    this.intervals++;
+    const elapsed = now - this.first;
+    if (elapsed >= 1500 && this.intervals >= 3) this.value = (this.intervals * 1000) / elapsed;
+  }
+  interrupt() {
+    if (this.value === null) {
+      this.first = null;
+      this.intervals = 0;
+    }
+  }
+  reset() {
+    this.value = null;
+    this.first = null;
+    this.intervals = 0;
+  }
+}

@@ -6,11 +6,17 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
   container.innerHTML = `
     <canvas id="world" tabindex="0" aria-label="Трёхмерный жук в земляном проходе. Перетаскивай мышью для осмотра, колесо приближает."></canvas>
     <header class="topbar"><a class="brand" href="./" aria-label="ProjectAtom — начать заново">A<span>PROJECT<br>ATOM</span></a><div class="chapter"><span class="eyebrow">Исследование 01 / 3D</span><p>У прохода</p></div><button id="settings-button" aria-expanded="false" aria-controls="settings">Настройки</button></header>
-    <section id="settings" class="settings panel" hidden aria-label="Настройки сцены">
-      <h2>Настройки</h2><div class="button-row"><button id="game-tab" aria-pressed="true">Игра</button><button id="graphics-tab" aria-pressed="false">Видео</button></div><div id="game-settings">
-      <button id="audio" aria-pressed="false">Звук: выкл.</button>
-      <label><input type="checkbox" id="low-quality"> Уменьшить качество</label>
-      </div><div id="graphics-settings" hidden></div>
+    <div id="settings-backdrop" hidden></div><section id="settings" class="settings panel graphics-open" hidden role="dialog" aria-modal="true" aria-label="Настройки" tabindex="-1">
+      <h2>Настройки</h2><button id="settings-close" aria-label="Закрыть настройки">×</button>
+      <div class="button-row" role="tablist" aria-label="Раздел настроек"><button id="game-tab" role="tab" aria-selected="true" aria-controls="game-settings">Звук</button><button id="graphics-tab" role="tab" aria-selected="false" aria-controls="graphics-settings" tabindex="-1">Видео</button></div>
+      <div id="game-settings" role="tabpanel" aria-labelledby="game-tab">
+        <header class="graphics-heading"><div><span class="eyebrow">ProjectAtom / Настройки</span><h2>Звук</h2></div><span class="graphics-heading-note">Звуковое окружение</span></header>
+        <div class="graphics-layout"><div>
+          <h3 class="graphics-section">Громкость</h3>
+          <div class="audio-settings-row"><span>Звуковые эффекты</span><button id="audio" aria-pressed="false">Звук: выкл.</button></div>
+          <label class="audio-settings-row" for="volume"><span>Общая громкость</span><span class="volume-control"><input id="volume" type="range" min="0" max="100" step="1" value="70"><output id="volume-value" for="volume">70%</output></span></label>
+        </div><aside class="graphics-aside"><div class="graphics-context"><span class="eyebrow">Описание параметра</span><h3>Звуковые эффекты</h3><p>Громкость звуков окружения и взаимодействий. Нулевое значение отключает звучание.</p></div></aside></div>
+      </div><div id="graphics-settings" role="tabpanel" aria-labelledby="graphics-tab" hidden></div>
     </section>
     <div id="loading" class="entry"><div class="entry-card"><span class="eyebrow">ProjectAtom · технопроба</span><h1>По ту сторону<br>маленького мира.</h1><p>Здесь есть только ты, проход и его обитатель.</p><button id="enter" disabled>Подготовка сцены…</button><p class="muted">Это проверка 3D-модели и анимаций. Полная эстафета остаётся в предыдущем макете.</p></div></div>
     <main id="study" hidden>
@@ -45,14 +51,72 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
     hints.revealNext('beetle');
     refreshHints();
   });
-  for (const tab of ['game', 'graphics'])
-    element(`${tab}-tab`).addEventListener('click', () => {
-      element('settings').classList.toggle('graphics-open', tab === 'graphics');
-      for (const name of ['game', 'graphics']) {
-        element(`${name}-settings`).hidden = name !== tab;
-        element(`${name}-tab`).setAttribute('aria-pressed', String(name === tab));
-      }
+  const tabs = ['game', 'graphics'];
+  function selectTab(tab: string, focus = false) {
+    for (const name of tabs) {
+      const selected = name === tab;
+      element(`${name}-settings`).hidden = !selected;
+      element(`${name}-tab`).setAttribute('aria-selected', String(selected));
+      element(`${name}-tab`).tabIndex = selected ? 0 : -1;
+    }
+    if (focus) element(`${tab}-tab`).focus();
+  }
+  for (const tab of tabs) {
+    element(`${tab}-tab`).addEventListener('click', () => selectTab(tab));
+    element(`${tab}-tab`).addEventListener('keydown', (event) => {
+      const key = (event as KeyboardEvent).key;
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key)) return;
+      event.preventDefault();
+      selectTab(
+        key === 'Home' ? tabs[0] : key === 'End' ? tabs[1] : tabs[1 - tabs.indexOf(tab)],
+        true,
+      );
     });
+  }
+  let returnFocus: HTMLElement | null = null;
+  function closeSettings() {
+    element('settings').hidden = true;
+    element('settings-backdrop').hidden = true;
+    element('settings-button').setAttribute('aria-expanded', 'false');
+    returnFocus?.focus();
+  }
+  function openSettings() {
+    returnFocus = document.activeElement as HTMLElement;
+    element('settings').hidden = false;
+    element('settings-backdrop').hidden = false;
+    element('settings-button').setAttribute('aria-expanded', 'true');
+    element('settings').querySelector<HTMLElement>('[role=tab][aria-selected=true]')!.focus();
+  }
+  element('settings-close').addEventListener('click', closeSettings);
+  element('settings-backdrop').addEventListener('click', closeSettings);
+  document.addEventListener('keydown', (event) => {
+    if (element('settings').hidden) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeSettings();
+    }
+    if (event.key === 'Tab') {
+      const focusable = [
+        ...element('settings').querySelectorAll<HTMLElement>('button,input,select,[tabindex="0"]'),
+      ].filter(
+        (el) =>
+          !el.closest('[hidden]') &&
+          el.offsetParent !== null &&
+          !(el as HTMLInputElement).disabled &&
+          el.tabIndex >= 0,
+      );
+      const first = focusable[0],
+        last = focusable.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  });
   let answered = false;
   function refresh() {
     for (const button of container.querySelectorAll<HTMLButtonElement>('[data-observation]'))
@@ -95,9 +159,8 @@ export function mountStudyView(container: HTMLElement, session: ObservationSessi
     answered = true;
   });
   element('settings-button').addEventListener('click', () => {
-    const settings = element('settings');
-    settings.hidden = !settings.hidden;
-    element('settings-button').setAttribute('aria-expanded', String(!settings.hidden));
+    if (element('settings').hidden) openSettings();
+    else closeSettings();
   });
   element('reload').addEventListener('click', () => location.reload());
   refresh();

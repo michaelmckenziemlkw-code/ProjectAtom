@@ -61,7 +61,15 @@ test('renders real animated WebGL, pauses, frames the model, and stays offline',
   await page.waitForTimeout(700);
   expect(await sceneImage()).not.toBe(before);
   await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-  await page.getByLabel('Уменьшить качество').check();
+  await page.getByRole('tab', { name: 'Видео', exact: true }).click();
+  const width = await page.locator('#world').evaluate((e: HTMLCanvasElement) => e.width);
+  await page.getByRole('combobox', { name: 'Качество сцены', exact: true }).selectOption('low');
+  expect(await page.locator('#world').evaluate((e: HTMLCanvasElement) => e.width)).toBe(width);
+  await page.locator('#graphics-apply').click();
+  await expect
+    .poll(() => page.locator('#world').evaluate((e: HTMLCanvasElement) => e.width))
+    .toBeLessThan(width);
+  await page.getByRole('tab', { name: 'Звук', exact: true }).click();
   await page.getByRole('button', { name: 'Звук: выкл.', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Звук: вкл.', exact: true })).toBeVisible();
   await expect(page.getByLabel('Текстовое описание жеста')).toHaveCount(0);
@@ -123,19 +131,29 @@ test('context loss shows a recovery action instead of silently freezing', async 
   await expect(page.getByRole('button', { name: 'Повторить', exact: true })).toBeVisible();
 });
 
-test('five FPS preserves time, graphics controls respond and F8 resets', async ({ page }) => {
+test('multiplicative pacing only changes after Apply, preserves time and boosts recover FPS', async ({
+  page,
+}) => {
   await page.goto('/?seed=12');
   await page.locator('#enter').click();
+  await expect
+    .poll(async () => Number(await page.locator('#world').getAttribute('data-baseline-fps')), {
+      timeout: 30000,
+    })
+    .toBeGreaterThan(0);
+  const base = Number(await page.locator('#world').getAttribute('data-baseline-fps'));
   await page.locator('#settings-button').click();
-  await page.getByRole('button', { name: 'Видео', exact: true }).click();
-  await expect(page.locator('#graphics-settings')).not.toContainText(
-    /пароди|понарошку|AAA EDITION|красивого названия/i,
-  );
-  await expect(page.locator('#graphics-settings input[type=checkbox]')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Видео', exact: true }).click();
+  await expect(page.locator('#graphics-apply')).toBeDisabled();
   await page.getByRole('combobox', { name: 'NVIDIA HairWorks', exact: true }).selectOption('true');
   await page.getByRole('combobox', { name: 'Ray Tracing', exact: true }).selectOption('true');
-  await expect(page.locator('#graphics-cap')).toHaveText('Предел: 5 FPS');
-  await page.waitForTimeout(500);
+  await expect(page.locator('#world')).toHaveAttribute('data-target-fps', '0');
+  await expect(page.locator('#graphics-preview')).toContainText('После применения');
+  await page.locator('#graphics-apply').click();
+  const cap = Math.max(Math.min(1, base), base * 0.7 * 0.2);
+  await expect
+    .poll(async () => Number(await page.locator('#world').getAttribute('data-target-fps')))
+    .toBeCloseTo(cap, 6);
   const sample = () =>
     page.locator('#world').evaluate((e) => ({
       t: Number((e as HTMLElement).dataset.animationTime),
@@ -143,30 +161,52 @@ test('five FPS preserves time, graphics controls respond and F8 resets', async (
       now: performance.now(),
     }));
   const a = await sample();
-  await page.waitForTimeout(2200);
+  await page.waitForTimeout(2400);
   const b = await sample();
   expect(b.n - a.n).toBeGreaterThan(0);
-  expect(b.n - a.n).toBeLessThanOrEqual(Math.ceil((b.now - a.now) / 200) + 1);
-  expect(Math.abs(b.t - a.t - (b.now - a.now) / 1000)).toBeLessThan(0.35);
-  await page.keyboard.press('F8');
-  await expect(page.locator('#graphics-cap')).toHaveText('Предел: без ограничения FPS');
-  await page.getByRole('combobox', { name: 'Апскейлер', exact: true }).selectOption('xess');
-  await expect(page.locator('#graphics-cap')).toHaveText('Предел: 50 FPS');
+  expect(b.n - a.n).toBeLessThanOrEqual(Math.ceil(((b.now - a.now) * cap) / 1000) + 1);
+  expect(Math.abs(b.t - a.t - (b.now - a.now) / 1000)).toBeLessThan(0.45);
   await page
-    .getByRole('combobox', { name: 'Режим апскейлинга', exact: true })
-    .selectOption('ultra');
-  await expect(page.locator('#graphics-cap')).toHaveText('Предел: 72 FPS');
-  await page.locator('#graphics-reset').click();
-  await expect(page.getByRole('combobox', { name: 'Апскейлер', exact: true })).toHaveValue('off');
+    .getByRole('combobox', { name: 'Multi Frame Generation', exact: true })
+    .selectOption('4x');
+  await expect
+    .poll(async () => Number(await page.locator('#world').getAttribute('data-target-fps')))
+    .toBeCloseTo(cap, 6);
+  await page.locator('#graphics-apply').click();
+  const amplified = Math.max(Math.min(1, base), base * 0.7 * 0.2 * 4);
+  await expect
+    .poll(async () => Number(await page.locator('#world').getAttribute('data-target-fps')))
+    .toBeCloseTo(amplified, 6);
+  await page.keyboard.press('F8');
   await expect(
-    page.getByRole('combobox', { name: 'Режим апскейлинга', exact: true }),
-  ).toBeDisabled();
+    page.getByRole('combobox', { name: 'Multi Frame Generation', exact: true }),
+  ).toHaveValue('off');
+  await expect(page.locator('#graphics-apply')).toBeEnabled();
+  await page.locator('#graphics-apply').click();
+  await expect(page.locator('#world')).toHaveAttribute('data-target-fps', '0');
   await page.getByRole('combobox', { name: 'Апскейлер', exact: true }).selectOption('dlss');
   await page
     .getByRole('combobox', { name: 'Режим апскейлинга', exact: true })
     .selectOption('balanced');
-  await expect(page.locator('#graphics-cap')).toHaveText('Предел: 60 FPS');
+  await page.locator('#graphics-apply').click();
+  await expect(page.locator('#world')).toHaveAttribute('data-target-fps', '0');
+  await expect(page.locator('#graphics-settings')).not.toContainText(
+    /пароди|понарошку|AAA EDITION/i,
+  );
+  await page.getByRole('spinbutton', { name: 'Ручной лимит кадров', exact: true }).fill('5');
+  await expect(page.locator('#graphics-apply')).toBeEnabled();
+  await expect(page.locator('#world')).toHaveAttribute('data-target-fps', '0');
+  await page.locator('#graphics-apply').click();
+  await expect(page.locator('#world')).toHaveAttribute('data-target-fps', '5');
+  await page.keyboard.press('F8');
+  await page.locator('#graphics-apply').click();
+  await expect(page.locator('#world')).toHaveAttribute('data-target-fps', '0');
+  await page.getByRole('combobox', { name: 'Ray Tracing', exact: true }).selectOption('true');
+  const applyBox = (await page.locator('#graphics-apply').boundingBox())!;
+  const footerBox = (await page.locator('.graphics-footer').boundingBox())!;
+  expect(applyBox.y + applyBox.height).toBeLessThanOrEqual(footerBox.y);
   await page.locator('#settings').evaluate((e) => (e.scrollTop = 0));
+  await page.locator('.graphics-options').evaluate((e) => (e.scrollTop = 0));
   await page.screenshot({ path: 'docs/images/graphics-settings.png' });
 });
 
@@ -200,4 +240,64 @@ test('hints cost points once per level across observation variants', async ({ pa
   await page.locator('#graphics-tab').click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'docs/images/graphics-narrow.png', fullPage: true });
+});
+
+test('sound and video share a dialog, volume controls the audio master and Escape restores focus', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = AudioContext.prototype.createGain;
+    AudioContext.prototype.createGain = function () {
+      const gain = original.call(this),
+        connect = gain.connect.bind(gain);
+      gain.connect = ((destination: AudioNode) => {
+        if (destination instanceof AudioDestinationNode)
+          (window as unknown as { audioMaster: GainNode }).audioMaster = gain;
+        return connect(destination);
+      }) as typeof gain.connect;
+      return gain;
+    };
+  });
+  await page.goto('/?seed=12');
+  await page.locator('#enter').click();
+  await page.locator('#settings-button').click();
+  const box = await page.getByRole('dialog', { name: 'Настройки', exact: true }).boundingBox();
+  await page.getByRole('tab', { name: 'Видео', exact: true }).click();
+  expect(await page.getByRole('dialog', { name: 'Настройки', exact: true }).boundingBox()).toEqual(
+    box,
+  );
+  await page.getByRole('combobox', { name: 'NVIDIA PhysX', exact: true }).selectOption('true');
+  await page.getByRole('tab', { name: 'Звук', exact: true }).click();
+  expect(await page.getByRole('dialog', { name: 'Настройки', exact: true }).boundingBox()).toEqual(
+    box,
+  );
+  await page.getByRole('button', { name: 'Звук: выкл.', exact: true }).click();
+  const volume = page.getByRole('slider', { name: 'Общая громкость', exact: true });
+  await volume.press('Home');
+  await volume.press('ArrowRight');
+  await expect(page.locator('#volume-value')).toHaveText('1%');
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { audioMaster: GainNode }).audioMaster.gain.value),
+    )
+    .toBeCloseTo(0.01, 3);
+  await volume.press('Home');
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { audioMaster: GainNode }).audioMaster.gain.value),
+    )
+    .toBeCloseTo(0, 2);
+  await page.getByRole('button', { name: 'Звук: вкл.', exact: true }).click();
+  await page.screenshot({ path: 'docs/images/sound-settings.png' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(page.locator('#settings-button')).toBeFocused();
+  await page.locator('#settings-button').click();
+  await page.getByRole('tab', { name: 'Видео', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'NVIDIA PhysX', exact: true })).toHaveValue(
+    'true',
+  );
+  await expect(page.locator('#world')).toHaveAttribute('data-target-fps', '0');
+  await page.locator('#settings-close').click();
+  await expect(page.getByRole('dialog')).toBeHidden();
 });

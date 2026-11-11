@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ActiveClock, FramePacer, FrameMeter } from './timing.ts';
-import { defaultGraphics, effectiveFrameCap } from './graphics.ts';
+import { ActiveClock, FramePacer, FrameMeter, UncappedFpsSampler } from './timing.ts';
+import { defaultGraphics, effectiveFrameCap, graphicsMultiplier } from './graphics.ts';
 import { HintBank } from './hints.ts';
 test('active time retains ten seconds at every FPS and after delay', () => {
   for (const fps of [1, 5, 40, 144]) {
@@ -38,24 +38,71 @@ test('five FPS and real render meter', () => {
   assert.equal(m.fps(1000), 4);
   assert.equal(m.fps(2000), 0);
 });
-test('graphics combinations use minimum caps', () => {
+test('costs multiply from the 165 FPS baseline and boosts recover lost frames', () => {
   const s = defaultGraphics();
-  assert.equal(effectiveFrameCap(s), 0);
+  const close = (actual: number, expected: number) =>
+    assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
+  assert.equal(effectiveFrameCap(s, 165), 0);
   s.hair = true;
-  assert.equal(effectiveFrameCap(s), 40);
-  s.ray = true;
-  assert.equal(effectiveFrameCap(s), 5);
-  s.ray = false;
-  s.path = true;
-  assert.equal(effectiveFrameCap(s), 5);
+  close(effectiveFrameCap(s, 165), 115.5);
   s.hair = false;
-  assert.equal(effectiveFrameCap(s), 8);
-  const u = defaultGraphics();
-  u.upscaler = 'fsr';
-  assert.equal(effectiveFrameCap(u), 52);
-  u.quality = 'ultra';
-  assert.equal(effectiveFrameCap(u), 76);
-  assert.equal(effectiveFrameCap(u, 3), 3);
+  s.ray = true;
+  close(effectiveFrameCap(s, 165), 33);
+  s.path = true;
+  close(effectiveFrameCap(s, 165), 9.9);
+  close(graphicsMultiplier(s), 0.06);
+  s.path = false;
+  s.generation = '2x';
+  close(effectiveFrameCap(s, 165), 66);
+  s.generation = '3x';
+  close(effectiveFrameCap(s, 165), 99);
+  s.generation = '4x';
+  close(effectiveFrameCap(s, 165), 132);
+  s.upscaler = 'dlss';
+  s.quality = 'balanced';
+  assert.equal(effectiveFrameCap(s, 165), 0);
+  s.manual = 60;
+  assert.equal(effectiveFrameCap(s, 165), 60);
+  assert.equal(effectiveFrameCap(s, 165, 30), 30);
+});
+test('upscaling gets faster with performance modes, caps stay finite during calibration', () => {
+  const s = defaultGraphics();
+  s.ray = true;
+  for (const technology of ['dlss', 'fsr', 'xess'] as const) {
+    s.upscaler = technology;
+    let previous = 0;
+    for (const quality of ['quality', 'balanced', 'performance', 'ultra'] as const) {
+      s.quality = quality;
+      const cap = effectiveFrameCap(s, 165);
+      assert.ok(cap > previous);
+      previous = cap;
+    }
+  }
+  s.upscaler = 'off';
+  s.path = true;
+  assert.equal(effectiveFrameCap(s, null), 0);
+  assert.equal(effectiveFrameCap(s, NaN), 0);
+  assert.equal(effectiveFrameCap(s, Infinity), 0);
+  assert.equal(effectiveFrameCap(s, 2), 1);
+  assert.equal(effectiveFrameCap(s, 0.5), 0.5);
+  s.manual = 5;
+  assert.equal(effectiveFrameCap(s, null), 5);
+});
+test('baseline samples real unpaced renders once and ignores later capped FPS', () => {
+  const s = new UncappedFpsSampler();
+  for (let i = 0; i <= 300; i++) s.sample((i * 1000) / 165);
+  assert.ok(Math.abs(s.value! - 165) < 1e-8);
+  s.sample(20000);
+  assert.ok(Math.abs(s.value! - 165) < 1e-8);
+  s.reset();
+  s.sample(0);
+  s.sample(100);
+  s.interrupt();
+  s.sample(10000);
+  s.sample(10500);
+  s.sample(11000);
+  s.sample(11500);
+  assert.equal(s.value, 2);
 });
 test('shared hints spend 10 minus 2 minus 3 equals 5', () => {
   const h = new HintBank({ first: 3, second: 3, third: 3 });
