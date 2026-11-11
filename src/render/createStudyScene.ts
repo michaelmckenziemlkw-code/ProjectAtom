@@ -1,3 +1,4 @@
+import { Frustum } from '@babylonjs/core/Maths/math.frustum';
 import { WORLD_PALETTE as palette } from './palette.ts';
 import { createCinematicSky } from './cinematicSky.ts';
 import { ColorCurves } from '@babylonjs/core/Materials/colorCurves';
@@ -220,6 +221,13 @@ export async function createStudyScene(
             .filter((m) => m.name === 'eagle-curling-toe')
             .map((m) => Math.max(...m.getBoundingInfo().boundingBox.extendSizeWorld.asArray()) * 2),
         ),
+      );
+      const planes = Frustum.GetPlanes(scene.getTransformMatrix());
+      canvas.dataset.eagleInFrame = String(
+        scene
+          .getTransformNodeByName('eagle')!
+          .getChildMeshes()
+          .some((mesh) => mesh.isEnabled() && mesh.isInFrustum(planes)),
       );
       canvas.dataset.eagleSpotting = String(sample.spotting);
       canvas.dataset.eagleGrasp = String(sample.eaglePose.grasp ?? 0);

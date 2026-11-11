@@ -94,7 +94,7 @@ test('both birds fit the attack camera and the fall camera tracks the rotating b
       right[2]! * forward[0]! - right[0]! * forward[2]!,
       right[0]! * forward[1]! - right[1]! * forward[0]!,
     ];
-    for (const bird of [s.crow, s.eagle]) {
+    for (const bird of time >= 71 ? [s.crow, s.eagle] : [s.crow]) {
       const relative = sub(bird, s.camera),
         depth = dot(relative, forward);
       assert.ok(depth > 0);
@@ -275,4 +275,23 @@ test('the eagle notices the crow in a short insert, overtakes from behind and cl
       assert.ok(Math.hypot(...world.map((v, j) => v - targets[i]![j]!)) < 1e-8);
     });
   }
+});
+
+test('eagle is enabled beyond the lens and starts the pursuit shot beyond the left edge', () => {
+  const sub = (a: number[], b: number[]) => a.map((v, i) => v - b[i]!);
+  const dot = (a: number[], b: number[]) => a.reduce((sum, v, i) => sum + v * b[i]!, 0);
+  const norm = (a: number[]) => a.map((v) => v / Math.hypot(...a));
+  const radius = EAGLE_SCALE * 2.1; // Conservative envelope including spread wing tips.
+  for (const t of [51, 55, 63, 65, 66.9]) {
+    const s = sampleIntro(t),
+      forward = norm(sub(s.target, s.camera));
+    assert.ok(s.eagleVisible);
+    assert.ok(dot(sub(s.eagle, s.camera), forward) + radius < 0);
+  }
+  const s = sampleIntro(67),
+    forward = norm(sub(s.target, s.camera));
+  const right = norm([forward[2]!, 0, -forward[0]!]),
+    relative = sub(s.eagle, s.camera);
+  const k = Math.tan(0.75 / 2) * 1.44;
+  assert.ok((dot(relative, right) + k * dot(relative, forward)) / Math.hypot(1, k) + radius < 0);
 });

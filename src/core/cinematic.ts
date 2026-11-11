@@ -47,8 +47,8 @@ function crowPath(t: number): Point {
 }
 function eaglePath(t: number): Point {
   // Faster flight along the crow's heading: approach from behind, then carry the caught bird.
-  const catchUp = smooth((t - 65) / 9.6);
-  const offset = mix([6, 12, -28], [0, 5.65, -0.8], catchUp);
+  const catchUp = smooth((t - 67) / 7.6);
+  const offset = mix([20, 12, -100], [0, 5.65, -0.8], catchUp);
   return add(crowPath(t), offset);
 }
 const velocity = (path: (t: number) => Point, t: number): Point =>
@@ -145,7 +145,11 @@ export const SUN_POSITION = add(
 const RELEASE_OFFSET: Point = [3.2, 1.2, 5.8];
 function attackFrame(t: number, crow: Point, eagle: Point, worm: Point, rotation: Point) {
   const push = smooth((t - 71.5) / 3);
-  const target = mix(mix(crow, eagle, 0.5), add(worm, rotate([0, 0.17, -1.05], rotation)), push);
+  const target = mix(
+    mix(crow, eagle, 0.35 * smooth((t - 68.5) / 2)),
+    add(worm, rotate([0, 0.17, -1.05], rotation)),
+    push,
+  );
   return { target, camera: add(target, mix([43, 16, 36], RELEASE_OFFSET, push)) };
 }
 export function sampleIntro(seconds: number) {
@@ -328,7 +332,8 @@ export function sampleIntro(seconds: number) {
     crowVisible: time >= 18 && time < 85,
     eagle,
     eaglePose,
-    eagleVisible: spotting || (time >= 65 && time < 85),
+    // Enable while fully behind the camera; never toggle a bird on inside a shot.
+    eagleVisible: time >= 51 && time < 85,
     carried,
     falling,
     grip: attachment.grip,

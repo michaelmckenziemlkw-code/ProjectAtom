@@ -325,3 +325,34 @@ test('eagle spotting insert leads to a rear talon grip, shocked beak and continu
   expect(Number(await canvas.getAttribute('data-solar-alignment'))).toBeLessThan(0.03);
   expect(errors).toEqual([]);
 });
+
+test('eagle stays outside the lens when enabled and flies in through the edge of the pursuit shot', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto('/?seed=12');
+  await page.locator('#enter-cinematic').click({ timeout: 60000 });
+  const canvas = page.locator('#world');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  const show = async (t: number, file?: string) => {
+    const now = Number(await canvas.getAttribute('data-animation-time'));
+    await page.clock.fastForward((t - now) * 1000);
+    await page.clock.runFor(16);
+    if (file) await page.screenshot({ path: 'docs/images/' + file + '.png' });
+  };
+  for (const t of [51, 52.5]) {
+    await show(t);
+    await expect(canvas).toHaveAttribute('data-intro-eagle', 'true');
+    await expect(canvas).toHaveAttribute('data-eagle-in-frame', 'false');
+  }
+  await show(53.8, 'worm-eagle-notices');
+  await expect(canvas).toHaveAttribute('data-eagle-in-frame', 'true');
+  for (const t of [55.2, 63, 65, 66.8, 67.05]) {
+    await show(t, t === 67.05 ? 'worm-eagle-before-entry' : undefined);
+    await expect(canvas).toHaveAttribute('data-intro-eagle', 'true');
+    await expect(canvas).toHaveAttribute('data-eagle-in-frame', 'false');
+  }
+  await show(69.8, 'worm-eagle-enters-edge');
+  await show(70.5, 'worm-eagle-entered');
+  await expect(canvas).toHaveAttribute('data-eagle-in-frame', 'true');
+});
