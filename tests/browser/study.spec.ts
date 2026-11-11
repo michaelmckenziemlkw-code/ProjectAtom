@@ -227,6 +227,7 @@ test('paid hints and optional recognition remain available only through the menu
   await expect(page.locator('#progress')).toHaveText('Распознано: 3 / 3');
   await page.locator('#quit').click();
   await page.locator('#enter').click();
+  await expect.poll(()=>page.evaluate(()=>document.pointerLockElement?.id)).toBe('world');
   await menu(page);
   await expect(page.locator('#hint-budget')).toHaveText('10');
 });
