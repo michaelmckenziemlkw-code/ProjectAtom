@@ -2,12 +2,21 @@ import { COUGH_TIMES } from '../core/cinematic.ts';
 import { sampleGesture } from '../core/motion.ts';
 import type { Gesture } from '../core/observation.ts';
 
-/** Optional local synthesis: no audio files or microphone permissions. */
+/** Local soundtrack playback and synthesized effects; no microphone permissions. */
 export class ContactAudio {
   private context: AudioContext | null = null;
   private scrape: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
   private lastEvent = 0;
   private introVoices: AudioScheduledSourceNode[] = [];
+  private introBytes: ArrayBuffer | null = null;
+  private introBuffer: AudioBuffer | null = null;
+  private introGeneration = 0;
+
+  async loadIntro(): Promise<void> {
+    const response = await fetch(`${import.meta.env.BASE_URL}music/WormTheme.ogg`);
+    if (!response.ok) throw new Error('Не удалось загрузить WormTheme');
+    this.introBytes = await response.arrayBuffer();
+  }
   enabled = false;
   private master: GainNode | null = null;
   private volume = 0.7;
@@ -49,22 +58,17 @@ export class ContactAudio {
     return this.enabled;
   }
 
-  startIntro(elapsed = 0): void {
+  async startIntro(elapsed = 0): Promise<void> {
     this.stopIntro();
+    const generation = this.introGeneration;
     const ctx = this.context;
-    if (!ctx || !this.master) return;
+    if (!ctx || !this.master || !this.introBytes) return;
+    const requestedAt = performance.now();
+    this.introBuffer ??= await ctx.decodeAudioData(this.introBytes.slice(0));
+    if (generation !== this.introGeneration) return;
+    elapsed += (performance.now() - requestedAt) / 1000;
+    if (elapsed >= this.introBuffer.duration) return;
     const start = ctx.currentTime - elapsed;
-    // Original sparse D-minor phrase; harmonics have a soft struck-string envelope.
-    const notes = [
-      [0, 146.83],
-      [2.6, 220],
-      [5.2, 174.61],
-      [8, 130.81],
-      [11.5, 164.81],
-      [14.5, 146.83],
-      [18, 110],
-      [20, 146.83],
-    ];
     const track = (source: AudioScheduledSourceNode, nodes: AudioNode[]) => {
       this.introVoices.push(source);
       source.onended = () => {
@@ -73,23 +77,13 @@ export class ContactAudio {
         nodes.forEach((node) => node.disconnect());
       };
     };
-    for (const [at, frequency] of notes) {
-      if (at! < elapsed) continue;
-      for (const harmonic of [1, 2, 3]) {
-        const osc = ctx.createOscillator(),
-          gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = frequency! * harmonic;
-        const t = start + at!;
-        gain.gain.setValueAtTime(0, t);
-        gain.gain.linearRampToValueAtTime(0.055 / (harmonic * harmonic), t + 0.035);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 3.8);
-        osc.connect(gain).connect(this.master);
-        track(osc, [gain]);
-        osc.start(t);
-        osc.stop(t + 4);
-      }
-    }
+    const music = ctx.createBufferSource();
+    music.buffer = this.introBuffer;
+    const musicGain = ctx.createGain();
+    musicGain.gain.value = 2.2;
+    music.connect(musicGain).connect(this.master);
+    track(music, [musicGain]);
+    music.start(ctx.currentTime, elapsed);
     for (const at of COUGH_TIMES) {
       if (at < elapsed) continue;
       const source = ctx.createBufferSource();
@@ -120,6 +114,7 @@ export class ContactAudio {
     );
   }
   stopIntro(): void {
+    this.introGeneration++;
     for (const voice of this.introVoices) voice.stop();
     this.introVoices = [];
   }

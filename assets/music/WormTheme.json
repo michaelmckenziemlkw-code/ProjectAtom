@@ -1,0 +1,12 @@
+{
+  "format": 0,
+  "tracks": 1,
+  "ppq": 1920,
+  "midiDuration": 131.17395833333302,
+  "notes": 517,
+  "pedalEvents": 352,
+  "audioDuration": 134.17395833333302,
+  "peak": 0.15924072265625,
+  "instrument": "TimGM6mb Acoustic Grand Piano",
+  "sourceSha256": "d68c7673bde662aa064e03c35efd0ac16265ff27ff7ad2f343e84b884b2c4329"
+}

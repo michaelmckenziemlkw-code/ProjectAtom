@@ -82,7 +82,7 @@ function enter(withIntro: boolean) {
       .then(() => {
         view.element('audio').textContent = audio.enabled ? 'Звук: вкл.' : 'Звук: выкл.';
         view.element('audio').setAttribute('aria-pressed', String(audio.enabled));
-        if (intro) audio.startIntro(clock.read(performance.now()));
+        if (intro) return audio.startIntro(clock.read(performance.now()));
       })
       .catch(() => {
         view.element('audio').textContent = 'Звук недоступен';
@@ -223,7 +223,7 @@ async function start() {
     }
     study.quality(false);
     study.present(session.current, walk, 0, yaw, pitch);
-    await study.scene.whenReadyAsync();
+    await Promise.all([study.scene.whenReadyAsync(), audio.loadIntro()]);
     if (disposed) {
       study?.dispose();
       study = null;

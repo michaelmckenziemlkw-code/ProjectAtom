@@ -1,3 +1,4 @@
+import { createProceduralBird } from './models/proceduralBird.ts';
 import { sampleIntro } from '../core/cinematic.ts';
 import { createIntroStage } from './introStage.ts';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
@@ -61,6 +62,8 @@ export async function createStudyScene(
     throw error;
   }
   const worm = createProceduralWorm(scene);
+  const crow = createProceduralBird(scene);
+  const eagle = createProceduralBird(scene, true);
   const introStage = createIntroStage(scene);
   introStage.present(null);
   const leaf = ellipsoid(
@@ -115,6 +118,9 @@ export async function createStudyScene(
     presentIntro(seconds: number) {
       const sample = sampleIntro(seconds);
       actor.root.setEnabled(false);
+      crow.present(sample.crow, seconds, sample.crowVisible);
+      eagle.present(sample.eagle, seconds, sample.eagleVisible, true);
+      scene.fogDensity = 0.006;
       leaf.setEnabled(false);
       sun.diffuse.set(
         0.64 + 0.36 * sample.handoff,
@@ -134,6 +140,12 @@ export async function createStudyScene(
       scene.render();
       Object.assign(canvas.dataset, {
         introShot: String(sample.shot),
+        introPhase: sample.phase,
+        introWormY: String(sample.worm[1]),
+        introRotation: sample.rotation.join(','),
+        introCarried: String(sample.carried),
+        introCrow: String(sample.crowVisible),
+        introEagle: String(sample.eagleVisible),
         introCough: String(sample.cough),
         renderedCameraX: String(camera.position.x),
         renderedCameraY: String(camera.position.y),
@@ -148,6 +160,9 @@ export async function createStudyScene(
       pitch: number,
     ) {
       actor.root.setEnabled(true);
+      crow.present([0, 0, 0], seconds, false);
+      eagle.present([0, 0, 0], seconds, false);
+      scene.fogDensity = 0.045;
       scene.clearColor.set(0.14, 0.18, 0.15, 1);
       scene.fogColor.set(0.23, 0.28, 0.22);
       sun.diffuse.set(1, 0.87, 0.63);

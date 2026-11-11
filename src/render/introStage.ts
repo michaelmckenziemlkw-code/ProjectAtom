@@ -2,7 +2,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Scene } from '@babylonjs/core/scene';
-import { COUGH_TIMES } from '../core/cinematic.ts';
+import { COUGH_TIMES, IMPACT_TIME } from '../core/cinematic.ts';
 import { ellipsoid, material, segment } from './meshTools.ts';
 
 /** Small persistent set at the player spawn: wet mud, leaves, water, tiny blood flecks. */
@@ -58,7 +58,7 @@ export function createIntroStage(scene: Scene) {
       }
   }
   const blood = material(scene, 'cough-blood', '#631e26', 30);
-  const drops = Array.from({ length: 9 }, (_, i) =>
+  const drops = Array.from({ length: COUGH_TIMES.length * 3 }, (_, i) =>
     ellipsoid(
       scene,
       'cough-drop',
@@ -67,8 +67,45 @@ export function createIntroStage(scene: Scene) {
       blood,
     ),
   );
+  const cloudMat = material(scene, 'intro-cloud', '#c8d1db', 1);
+  cloudMat.specularColor.setAll(0);
+  cloudMat.emissiveColor.set(0.35, 0.42, 0.5);
+  cloudMat.alpha = 0.35;
+  cloudMat.disableDepthWrite = true;
+  const clouds = Array.from({ length: 14 }, (_, i) =>
+    ellipsoid(
+      scene,
+      'intro-cloud',
+      new Vector3(
+        Math.cos(i * 2.4) * (15 + (i % 3) * 7),
+        25 + i * 3,
+        -5 + Math.sin(i * 2.4) * (20 + (i % 4) * 5),
+      ),
+      new Vector3(4 + (i % 3), 1.4, 2.7),
+      cloudMat,
+    ),
+  );
+  const rippleMat = material(scene, 'impact-ripple', '#7f9aa7', 80);
+  const ripples = [0, 1, 2].map((i) => {
+    const ring = MeshBuilder.CreateTorus(
+      'impact-ripple',
+      { diameter: 1, thickness: 0.018, tessellation: 48 },
+      scene,
+    );
+    ring.position.set(0, 0.045, -5.5);
+    ring.material = rippleMat;
+    ring.setEnabled(false);
+    return { ring, delay: i * 0.18 };
+  });
   return {
     present(seconds: number | null) {
+      clouds.forEach((cloud) => cloud.setEnabled(seconds !== null));
+      for (const { ring, delay } of ripples) {
+        const dt = seconds === null ? -1 : seconds - IMPACT_TIME - delay;
+        ring.setEnabled(dt >= 0 && dt < 1.2);
+        ring.scaling.setAll(0.25 + Math.max(0, dt) * 1.7);
+        ring.scaling.y = 0.25;
+      }
       drops.forEach((drop, i) => {
         const dt = seconds === null ? -1 : seconds - COUGH_TIMES[Math.floor(i / 3)]!;
         drop.setEnabled(dt >= 0);

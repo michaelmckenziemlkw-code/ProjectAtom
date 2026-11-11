@@ -1,4 +1,5 @@
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import type { sampleIntro } from '../../core/cinematic.ts';
@@ -10,6 +11,8 @@ export function createProceduralWorm(scene: Scene) {
   const root = new TransformNode('worm', scene);
   const skin = material(scene, 'worm-skin', '#bd8275', 38);
   const band = material(scene, 'worm-band', '#97574f', 25);
+  const normalSkin = skin.diffuseColor.clone(),
+    normalBand = band.diffuseColor.clone();
   const black = material(scene, 'worm-eyes', '#151318', 65);
   const pearl = material(scene, 'worm-eye-highlight', '#f3ded2', 40);
   const head = new TransformNode('worm-head', scene);
@@ -25,6 +28,7 @@ export function createProceduralWorm(scene: Scene) {
       root,
     );
   });
+  const lids: ReturnType<typeof ellipsoid>[] = [];
   for (const side of [-1, 1]) {
     ellipsoid(
       scene,
@@ -34,6 +38,16 @@ export function createProceduralWorm(scene: Scene) {
       black,
       head,
     );
+    const lid = ellipsoid(
+      scene,
+      'worm-tired-lid',
+      new Vector3(side * 0.125, 0.34, 0.163),
+      new Vector3(0.044, 0.024, 0.025),
+      skin,
+      head,
+    );
+    lid.setEnabled(false);
+    lids.push(lid);
     ellipsoid(
       scene,
       'worm-eye-shine',
@@ -45,14 +59,21 @@ export function createProceduralWorm(scene: Scene) {
   }
   return {
     presentIntro(sample: ReturnType<typeof sampleIntro>) {
-      root.position.set(0, 0, -5.2);
+      lids.forEach((lid) => lid.setEnabled(true));
+      root.position.copyFromFloats(...sample.worm);
+      root.rotation.copyFromFloats(...sample.rotation);
+      skin.diffuseColor.copyFrom(Color3.FromHexString('#d6d1ce'));
+      band.diffuseColor.copyFrom(Color3.FromHexString('#aaa3a1'));
+      const compression =
+        sample.impact >= 0 ? Math.sin(Math.min(1, sample.impact * 3) * Math.PI) * 0.15 : 0;
+      root.scaling.set(1 + compression * 0.3, 1 - compression, 1);
       const weakness = 1 - sample.rise;
       head.rotation.set(0, 0, -0.5 * weakness + sample.cough * 0.35);
       head.position.y = -0.07 * weakness + sample.cough * 0.08;
       segments.forEach((segment, i) => {
         segment.position.set(
           Math.sin(i * 0.42) * 0.17 * weakness,
-          0.16 +
+          (sample.phase === 'aftermath' ? 0.12 : 0.16) +
             0.06 * sample.rise +
             Math.sin(sample.time * 1.8 - i * 0.2) * 0.007 +
             sample.cough * Math.exp(-i * 0.35) * 0.08,
@@ -63,7 +84,12 @@ export function createProceduralWorm(scene: Scene) {
       });
     },
     present(walk: WalkSession, seconds: number) {
+      lids.forEach((lid) => lid.setEnabled(false));
       root.position.set(walk.x, 0, walk.z);
+      root.rotation.setAll(0);
+      root.scaling.setAll(1);
+      skin.diffuseColor.copyFrom(normalSkin);
+      band.diffuseColor.copyFrom(normalBand);
       head.position.set(0, 0, 0);
       head.rotation.set(0, walk.heading, 0);
       segments.forEach((segment, i) => {
