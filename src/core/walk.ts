@@ -34,8 +34,8 @@ export function beetleMotion(seconds: number, beddingAt: number | null): BeetleM
   const p = smooth(t / 1.8),
     leave = smooth((t - 2.6) / 2.4);
   return {
-    x: 2.7 * p + 2.8 * leave,
-    y: 0.9 * p + 0.25 * leave,
+    x: 1.8 * p + 3.7 * leave,
+    y: 0.55 * p + 0.6 * leave,
     z: -0.2 * p + 4.4 * leave,
     heading: (-Math.PI / 2) * smooth(t / 0.65) - 1.0 * smooth((t - 2.6) / 0.6),
     stage: t < 1.8 ? 'approaching' : t < 2.6 ? 'picking-up' : t < 5 ? 'leaving' : 'cleared',
@@ -105,7 +105,7 @@ export class WalkSession {
       const moved = Math.hypot(x - oldX, z - oldZ);
       this.distance += moved;
       if (moved > 1e-8) this.heading = Math.atan2(dx, dz);
-      else if (this.beddingAt === null || seconds < this.beddingAt + 1.5) break;
+      else if (!blocked || this.beddingAt === null || seconds < this.beddingAt + 1.5) break;
     }
   }
 }

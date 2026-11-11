@@ -39,6 +39,7 @@ export async function createStudyScene(
     new Vector3(0, 0.55, -5.2),
     scene,
   );
+  camera.fov = 1.0;
   camera.minZ = 0.08; // Controls are supplied by Pointer Lock, never by drag/orbit inputs.
   const fill = new HemisphericLight('sky', new Vector3(-0.5, 1, -0.4), scene);
   fill.intensity = 0.65;
@@ -122,12 +123,14 @@ export async function createStudyScene(
       worm.present(walk, seconds);
       leaf.setEnabled(walk.beddingAt !== null);
       if (motion.carrying) {
-        leaf.position.set(
+        const lift = Math.max(0, Math.min(1, (seconds - walk.beddingAt! - 2.3) / 0.3));
+        const carry = new Vector3(
           motion.x - Math.sin(motion.heading) * 1.25,
           motion.y + 0.58,
           motion.z - Math.cos(motion.heading) * 1.25,
         );
-        leaf.rotation.set(0.4, motion.heading, 0);
+        leaf.position.copyFrom(Vector3.Lerp(new Vector3(2.7, 0.95, -0.2), carry, lift));
+        leaf.rotation.set(0.4 * lift, motion.heading * lift, 0);
       } else {
         leaf.position.set(2.7, 0.95, -0.2);
         leaf.rotation.set(0, 0, 0);
