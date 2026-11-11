@@ -1,3 +1,6 @@
+import { ActiveClock, FramePacer, FrameMeter } from './core/timing.ts';
+import { effectiveFrameCap } from './core/graphics.ts';
+import { mountGraphicsPanel } from './ui/graphicsPanel.ts';
 import './style.css';
 import { ObservationSession } from './core/observation.ts';
 import { createStudyScene } from './render/createStudyScene.ts';
@@ -15,7 +18,13 @@ const view = mountStudyView(document.querySelector<HTMLElement>('#app')!, sessio
 const audio = new ContactAudio();
 let study: Awaited<ReturnType<typeof createStudyScene>> | null = null;
 let entered = false;
-let seconds = 0;
+const clock = new ActiveClock(performance.now());
+const pacer = new FramePacer();
+const meter = new FrameMeter();
+const graphics = mountGraphicsPanel(view.element('graphics-settings'));
+let lastRender = performance.now();
+const updateClock = () =>
+  clock.setActive(entered && !session.state.paused && !document.hidden, performance.now());
 let disposed = false;
 
 async function start() {
@@ -41,11 +50,20 @@ async function start() {
     view.ready();
     study.engine.runRenderLoop(() => {
       if (!study) return;
-      const delta = Math.min(study.engine.getDeltaTime() / 1000, 0.1);
+      const now = performance.now();
+      const seconds = clock.read(now);
       const paused = session.state.paused || document.hidden || !entered;
-      if (!paused) seconds += delta;
-      study.present({ ...session.current, seconds }, delta);
       audio.present(session.current.gesture, seconds, paused);
+      view.canvas.dataset.animationTime = String(seconds);
+      if (pacer.shouldRender(now, effectiveFrameCap(graphics.settings))) {
+        const rendered = study.present({ ...session.current, seconds }, (now - lastRender) / 1000);
+        lastRender = now;
+        if (rendered) meter.record(now);
+      }
+      view.canvas.dataset.renderCount = String(meter.count);
+      const fps = meter.fps(now);
+      view.element('fps').textContent = paused ? 'Пауза' : `Отрисовка: ${fps} FPS`;
+      graphics.updateMetrics(paused, fps);
     });
   } catch (error) {
     console.error(error);
@@ -56,17 +74,19 @@ async function start() {
 }
 view.element('enter').addEventListener('click', () => {
   entered = true;
+  updateClock();
   view.enter();
 });
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-observation]'))
   button.addEventListener('click', () => {
     session.select(Number(button.dataset.observation));
-    seconds = 0;
+    clock.reset(performance.now());
     audio.silence();
     view.refresh();
   });
 view.element('pause').addEventListener('click', () => {
   session.state.paused = !session.state.paused;
+  updateClock();
   view.element('pause').textContent = session.state.paused ? 'Продолжить' : 'Пауза';
   view.element('pause').setAttribute('aria-pressed', String(session.state.paused));
   if (session.state.paused) audio.silence();
@@ -93,6 +113,7 @@ view.canvas.addEventListener('render-failure', (event) => {
   view.fail((event as CustomEvent<string>).detail);
 });
 document.addEventListener('visibilitychange', () => {
+  updateClock();
   if (document.hidden) audio.silence();
 });
 window.addEventListener(

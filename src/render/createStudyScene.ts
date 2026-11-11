@@ -149,7 +149,9 @@ export async function createStudyScene(
       if (poseChanged || moving || dirty || performance.now() < cameraDirtyUntil) {
         scene.render();
         dirty = false;
+        return true;
       }
+      return false;
     },
     dispose() {
       window.removeEventListener('resize', resize);

@@ -38,13 +38,12 @@ export function createObservations(seed: number): readonly Observation[] {
 export interface ObservationState {
   index: number;
   paused: boolean;
-  description: boolean;
   answers: Partial<Record<number, Gesture>>;
 }
 
 export class ObservationSession {
   readonly observations: readonly Observation[];
-  readonly state: ObservationState = { index: 0, paused: false, description: false, answers: {} };
+  readonly state: ObservationState = { index: 0, paused: false, answers: {} };
   constructor(seed: number) {
     this.observations = createObservations(seed);
   }

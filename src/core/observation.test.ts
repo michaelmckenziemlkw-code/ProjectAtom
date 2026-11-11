@@ -14,9 +14,9 @@ test('each seed includes all gestures, reproducibly, with varied order', () => {
   assert.ok(orders.size >= 3);
 });
 
-test('answers belong to each local observation; descriptions are opt-in', () => {
+test('answers belong to each local observation', () => {
   const session = new ObservationSession(12);
-  assert.equal(session.state.description, false);
+  assert.equal('description' in session.state, false);
   const first = session.current;
   const wrong = gestures.find((gesture) => gesture !== first.gesture)!;
   assert.equal(session.answer(wrong), false);
