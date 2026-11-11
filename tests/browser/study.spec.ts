@@ -35,10 +35,10 @@ test('real WebGL, locked mouse, worm movement, blocked passage and bedding depar
       const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
       if (!gl) return false;
       const pixels = new Uint8Array(canvas.width * canvas.height * 4);
-      gl.readPixels(0,0,canvas.width,canvas.height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
-      const colors=new Set<number>();
-      for(let i=0;i<pixels.length;i+=64)colors.add(pixels[i]);
-      return colors.size>15;
+      gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      const colors = new Set<number>();
+      for (let i = 0; i < pixels.length; i += 64) colors.add(pixels[i]);
+      return colors.size > 15;
     }),
   ).toBe(true);
   await expect(page.locator('#study button')).toHaveCount(0);
@@ -213,10 +213,27 @@ test('paid hints and optional recognition remain available only through the menu
   await expect(page.locator('#hint-budget')).toHaveText('7');
   await expect(page.locator('#hint-next')).toBeDisabled();
   await page.locator('#technical > summary').click();
-  await page.locator('#self-check summary').click();
   for (const observation of createObservations(12)) {
     await page.locator(`[data-observation="${observation.id}"]`).click();
     await expect(page.locator('#hint-budget')).toHaveText('7');
+  }
+  await page.locator('#quit').click();
+  await page.locator('#enter').click();
+  await expect.poll(() => page.evaluate(() => document.pointerLockElement?.id)).toBe('world');
+  await menu(page);
+  await expect(page.locator('#hint-budget')).toHaveText('10');
+});
+
+test('optional recognition can recover from wrong answers for all observations', async ({
+  page,
+}) => {
+  await enter(page);
+  await menu(page);
+  await page.locator('#technical > summary').click();
+  await page.locator('#self-check summary').click();
+  for (const observation of createObservations(12)) {
+    await page.locator(`[data-observation="${observation.id}"]`).click();
+    await expect(page.locator('#hint-budget')).toHaveText('10');
     const wrong = gestures.find((g) => g !== observation.gesture)!;
     await page.getByLabel(gestureLabels[wrong], { exact: true }).check();
     await page.locator('#answer-form button').click();
@@ -225,11 +242,6 @@ test('paid hints and optional recognition remain available only through the menu
     await page.locator('#answer-form button').click();
   }
   await expect(page.locator('#progress')).toHaveText('Распознано: 3 / 3');
-  await page.locator('#quit').click();
-  await page.locator('#enter').click();
-  await expect.poll(()=>page.evaluate(()=>document.pointerLockElement?.id)).toBe('world');
-  await menu(page);
-  await expect(page.locator('#hint-budget')).toHaveText('10');
 });
 
 test('narrow viewport keeps menus and Apply reachable without horizontal overflow', async ({
